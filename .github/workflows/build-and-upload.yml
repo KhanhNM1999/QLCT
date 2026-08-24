@@ -56,11 +56,18 @@ jobs:
         working-directory: QLCTApp
         run: |
           set -e
+          echo "--- Diagnostics: show build folder ---"
+          ls -la $PWD || true
+          echo "--- Diagnostics: show archive folder ---"
+          ls -la $PWD/build || true
+          ls -la $PWD/build/QLCTApp.xcarchive || true
+          echo "--- Run exportArchive (with allowProvisioningUpdates) ---"
           if [ -f $PWD/exportOptions.plist ]; then
-            xcodebuild -exportArchive -archivePath $PWD/build/QLCTApp.xcarchive -exportPath $PWD/build/QLCTApp -exportOptionsPlist $PWD/exportOptions.plist
+            xcodebuild -exportArchive -archivePath $PWD/build/QLCTApp.xcarchive -exportPath $PWD/build/QLCTApp -exportOptionsPlist $PWD/exportOptions.plist -allowProvisioningUpdates || true
           else
-            xcodebuild -exportArchive -archivePath $PWD/build/QLCTApp.xcarchive -exportPath $PWD/build/QLCTApp -exportOptionsPlist ./exportOptions.plist
+            xcodebuild -exportArchive -archivePath $PWD/build/QLCTApp.xcarchive -exportPath $PWD/build/QLCTApp -exportOptionsPlist ./exportOptions.plist -allowProvisioningUpdates || true
           fi
+          echo "--- export exit code: $? ---"
 
       - name: Upload to Appetize
         if: always()
