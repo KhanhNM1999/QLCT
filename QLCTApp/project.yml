@@ -1,0 +1,31 @@
+name: QLCTApp
+options:
+  bundleIdPrefix: com.khanhnm
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  SWIFT_VERSION: 5.9
+
+targets:
+  QLCTApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    bundleId: com.khanhnm.qlct
+    sources:
+      - path: QLCTApp
+        excludes:
+          - build
+    settings:
+      INFO_PLIST_FILE: QLCTApp/Info.plist
+
+  QLCTShare:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    bundleId: com.khanhnm.qlct.share
+    sources:
+      - path: QLCTApp/ShareExtension

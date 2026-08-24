@@ -24,6 +24,19 @@ jobs:
       - name: Install pods (if Podfile exists)
         run: |
           if [ -f QLCTApp/Podfile ]; then (cd QLCTApp && pod install); fi
+      - name: Install xcodegen
+        run: |
+          brew install xcodegen || true
+          xcodegen --version || true
+
+      - name: Generate Xcode project with XcodeGen
+        working-directory: QLCTApp
+        run: |
+          if [ -f project.yml ]; then
+            xcodegen generate || true
+          else
+            echo "No project.yml found, skipping xcodegen"
+          fi
       - name: Import signing assets (optional)
         if: env.APPLE_CERT_BASE64 != '' && env.MOBILEPROVISION_BASE64 != ''
         env:
