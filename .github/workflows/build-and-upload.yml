@@ -6,6 +6,11 @@ on:
 jobs:
   build:
     runs-on: macos-latest
+    env:
+      APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      MOBILEPROVISION_BASE64: ${{ secrets.MOBILEPROVISION_BASE64 }}
+      TEAM_ID: ${{ secrets.TEAM_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,11 +43,7 @@ jobs:
             echo "No project.yml found, skipping xcodegen"
           fi
       - name: Import signing assets (optional)
-        if: env.APPLE_CERT_BASE64 != '' && env.MOBILEPROVISION_BASE64 != ''
-        env:
-          APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-          MOBILEPROVISION_BASE64: ${{ secrets.MOBILEPROVISION_BASE64 }}
+        if: ${{ secrets.APPLE_CERT_BASE64 != '' && secrets.MOBILEPROVISION_BASE64 != '' }}
         run: |
           set -e
           echo "Decoding certificate..."
@@ -63,7 +64,14 @@ jobs:
           DEVELOPER_TEAM: ${{ secrets.TEAM_ID }}
         run: |
           set -e
-          xcodebuild -scheme QLCTApp -configuration Release -archivePath $PWD/build/QLCTApp.xcarchive archive CODE_SIGN_STYLE=Manual -allowProvisioningUpdates
+          echo "DEVELOPER_TEAM=$DEVELOPER_TEAM"
+          if [ -n "$APPLE_CERT_BASE64" ] && [ -n "$MOBILEPROVISION_BASE64" ]; then
+            echo "Using imported signing assets (manual signing)"
+            xcodebuild -scheme QLCTApp -configuration Release -archivePath $PWD/build/QLCTApp.xcarchive archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=$DEVELOPER_TEAM -allowProvisioningUpdates
+          else
+            echo "No signing assets provided — using Automatic signing with allowProvisioningUpdates"
+            xcodebuild -scheme QLCTApp -configuration Release -archivePath $PWD/build/QLCTApp.xcarchive archive CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=$DEVELOPER_TEAM -allowProvisioningUpdates
+          fi
 
       - name: Export IPA
         working-directory: QLCTApp
