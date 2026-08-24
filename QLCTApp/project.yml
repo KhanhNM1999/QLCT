@@ -16,7 +16,7 @@ targets:
     deploymentTarget: "16.0"
     bundleId: com.khanhnm.qlct
     sources:
-      - path: QLCTApp
+      - path: .
         excludes:
           - build
     settings:
@@ -28,4 +28,4 @@ targets:
     deploymentTarget: "16.0"
     bundleId: com.khanhnm.qlct.share
     sources:
-      - path: QLCTApp/ShareExtension
+      - path: ShareExtension
