@@ -43,7 +43,7 @@ jobs:
             echo "No project.yml found, skipping xcodegen"
           fi
       - name: Import signing assets (optional)
-        if: ${{ secrets.APPLE_CERT_BASE64 != '' && secrets.MOBILEPROVISION_BASE64 != '' }}
+        if: ${{ and(ne(env.APPLE_CERT_BASE64, ''), ne(env.MOBILEPROVISION_BASE64, '')) }}
         run: |
           set -e
           echo "Decoding certificate..."
