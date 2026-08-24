@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QLCT - Web Preview</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <div class="label">Số lương mới nhất</div>
+        <div id="salary" class="salary">Chưa có</div>
+        <div id="savings" class="savings">Tiết kiệm dự kiến: 0 VND</div>
+      </div>
+      <button id="addPaymentBtn">+ Thêm khoản</button>
+    </header>
+
+    <main>
+      <section class="card">
+        <h3>Khoản cần trả</h3>
+        <ul id="paymentsList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Checklist / Kế hoạch</h3>
+        <ul id="planList" class="list"></ul>
+      </section>
+
+      <section class="card">
+        <h3>Simulate Share (notification text)</h3>
+        <textarea id="notifText" placeholder="Dán nội dung thông báo ngân hàng vào đây"></textarea>
+        <div class="row">
+          <button id="shareBtn">Share to App</button>
+          <button id="sample1">Mẫu TPBank</button>
+          <button id="sample2">Mẫu HSBC</button>
+        </div>
+      </section>
+
+      <section class="card small">
+        <h4>Thêm khoản thủ công</h4>
+        <input id="pname" placeholder="Tên khoản" />
+        <input id="pamount" placeholder="Số tiền (VND)" />
+        <label><input id="precurring" type="checkbox"/> Trả góp (định kỳ)</label>
+        <button id="savePayment">Lưu khoản</button>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
