@@ -52,6 +52,7 @@ jobs:
 
           rm -rf build/Payload build/UnsignedIPA
           mkdir -p build/Payload build/UnsignedIPA
+          rm -rf "$APP_PATH/PlugIns"
           cp -R "$APP_PATH" build/Payload/
           (cd build && zip -r UnsignedIPA/LuongTietKiem-unsigned.ipa Payload)
 
