@@ -1,48 +1,63 @@
-import UIKit
 import Social
+import UIKit
+import UniformTypeIdentifiers
 
-// Mẫu code cho Share Extension. Sau khi tạo Share Extension target,
-// thêm file này vào target extension và set App Group trong entitlements.
-
-class ShareViewController: SLComposeServiceViewController {
-
+final class ShareViewController: SLComposeServiceViewController {
     override func isContentValid() -> Bool {
-        return true
+        true
     }
 
     override func didSelectPost() {
-        // Lấy text được share
-        if let item = extensionContext?.inputItems.first as? NSExtensionItem {
-            if let attachments = item.attachments {
-                for provider in attachments {
-                    if provider.hasItemConformingToTypeIdentifier("public.plain-text") {
-                        provider.loadItem(forTypeIdentifier: "public.plain-text", options: nil) { (data, error) in
-                            if let text = data as? String {
-                                self.saveSharedTextToAppGroup(text: text)
-                            }
-                            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
-                        }
-                        return
-                    }
-                }
+        guard let item = extensionContext?.inputItems.first as? NSExtensionItem,
+              let attachments = item.attachments else {
+            complete()
+            return
+        }
+
+        for provider in attachments {
+            if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                loadText(from: provider, typeIdentifier: UTType.plainText.identifier)
+                return
+            }
+
+            if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
+                loadText(from: provider, typeIdentifier: UTType.text.identifier)
+                return
             }
         }
-        self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+
+        complete()
     }
 
     override func configurationItems() -> [Any]! {
-        return []
+        []
     }
 
-    func saveSharedTextToAppGroup(text: String) {
-        let suiteName = SharedConstants.appGroup
-        if let ud = UserDefaults(suiteName: suiteName) {
-            var arr = ud.stringArray(forKey: "shared_notifications") ?? []
-            arr.insert(text, at: 0)
-            // keep recent 50
-            if arr.count > 50 { arr = Array(arr.prefix(50)) }
-            ud.setValue(arr, forKey: "shared_notifications")
-            ud.synchronize()
+    private func loadText(from provider: NSItemProvider, typeIdentifier: String) {
+        provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { [weak self] item, _ in
+            if let text = item as? String {
+                self?.saveSharedTextToAppGroup(text)
+            } else if let url = item as? URL, let text = try? String(contentsOf: url) {
+                self?.saveSharedTextToAppGroup(text)
+            }
+
+            DispatchQueue.main.async {
+                self?.complete()
+            }
         }
+    }
+
+    private func saveSharedTextToAppGroup(_ text: String) {
+        guard let userDefaults = UserDefaults(suiteName: SharedConstants.appGroup) else {
+            return
+        }
+
+        var notifications = userDefaults.stringArray(forKey: "shared_notifications") ?? []
+        notifications.insert(text, at: 0)
+        userDefaults.set(Array(notifications.prefix(50)), forKey: "shared_notifications")
+    }
+
+    private func complete() {
+        extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
 }

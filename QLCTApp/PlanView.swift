@@ -8,17 +8,24 @@ struct PlanView: View {
     var body: some View {
         List {
             Section(header: Text("Kế hoạch trả nợ tháng này")) {
-                ForEach(CalculationManager.planSchedule(salary: currentSalary(), payments: payments.map { $0 }), id: \.(0.id)) { item in
-                    let p = item.0
-                    let amt = item.1
+                ForEach(planItems, id: \.0.id) { item in
+                    let payment = item.0
+                    let amount = item.1
+
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(p.name)
-                            Text(p.isRecurring ? "Trả góp" : "Thanh toán một lần")
-                                .font(.caption).foregroundColor(.secondary)
+                            Text(payment.name)
+                                .font(Theme.Fonts.bodyEmphasis)
+
+                            Text(payment.isRecurring ? "Trả góp" : "Thanh toán một lần")
+                                .font(Theme.Fonts.caption)
+                                .foregroundColor(.secondary)
                         }
+
                         Spacer()
-                        Text("\(Int(amt)) VND")
+
+                        Text(CurrencyFormatter.vnd(amount))
+                            .font(Theme.Fonts.amountSmall)
                     }
                 }
             }
@@ -26,14 +33,21 @@ struct PlanView: View {
         .navigationTitle("Kế hoạch")
     }
 
-    func currentSalary() -> Double {
-        // try to fetch latest salary transaction
-        let req = NSFetchRequest<Transaction>(entityName: "Transaction")
-        req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        req.fetchLimit = 1
-        if let arr = try? viewContext.fetch(req), let t = arr.first {
-            return t.amount
+    private var planItems: [(Payment, Double)] {
+        CalculationManager
+            .planSchedule(salary: currentSalary(), payments: payments.map { $0 })
+            .filter { $0.1 > 0 }
+    }
+
+    private func currentSalary() -> Double {
+        let request = NSFetchRequest<Transaction>(entityName: "Transaction")
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        request.fetchLimit = 1
+
+        if let transactions = try? viewContext.fetch(request), let latest = transactions.first {
+            return latest.amount
         }
+
         return 0
     }
 }
@@ -41,5 +55,6 @@ struct PlanView: View {
 struct PlanView_Previews: PreviewProvider {
     static var previews: some View {
         PlanView()
+            .environment(\.managedObjectContext, PersistenceController(inMemory: true).container.viewContext)
     }
 }

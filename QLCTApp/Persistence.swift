@@ -27,7 +27,7 @@ final class PersistenceController {
         // Transaction entity
         let transaction = NSEntityDescription()
         transaction.name = "Transaction"
-        transaction.managedObjectClassName = "Transaction"
+        transaction.managedObjectClassName = NSStringFromClass(Transaction.self)
 
         let t_id = NSAttributeDescription()
         t_id.name = "id"
@@ -54,7 +54,7 @@ final class PersistenceController {
         // Payment entity
         let payment = NSEntityDescription()
         payment.name = "Payment"
-        payment.managedObjectClassName = "Payment"
+        payment.managedObjectClassName = NSStringFromClass(Payment.self)
 
         let p_id = NSAttributeDescription()
         p_id.name = "id"

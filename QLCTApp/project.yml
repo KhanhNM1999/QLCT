@@ -15,12 +15,19 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     bundleId: com.khanhnm.qlct
+    dependencies:
+      - target: QLCTShare
+        embed: true
+        codeSign: true
     sources:
       - path: .
         excludes:
+          - ShareExtension
+          - Tests
           - build
     settings:
-      INFO_PLIST_FILE: QLCTApp/Info.plist
+      INFOPLIST_FILE: AppInfo.plist
+      CODE_SIGN_ENTITLEMENTS: QLCTApp.entitlements
 
   QLCTShare:
     type: app-extension
@@ -29,3 +36,20 @@ targets:
     bundleId: com.khanhnm.qlct.share
     sources:
       - path: ShareExtension
+      - path: SharedConstants.swift
+    settings:
+      INFOPLIST_FILE: ShareExtension/Info.plist
+      CODE_SIGN_ENTITLEMENTS: ShareExtension/QLCTShare.entitlements
+      APPLICATION_EXTENSION_API_ONLY: true
+
+  QLCTAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: QLCTApp
+    settings:
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/QLCTApp.app/QLCTApp"
+      BUNDLE_LOADER: "$(TEST_HOST)"

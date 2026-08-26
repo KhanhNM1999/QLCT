@@ -4,13 +4,16 @@ import CoreData
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @FetchRequest(entity: Payment.entity(), sortDescriptors: []) private var payments: FetchedResults<Payment>
-    @FetchRequest(entity: Transaction.entity(), sortDescriptors: [NSSortDescriptor(keyPath: \Transaction.date, ascending: false)]) private var transactions: FetchedResults<Transaction>
+    @FetchRequest(
+        entity: Transaction.entity(),
+        sortDescriptors: [NSSortDescriptor(keyPath: \Transaction.date, ascending: false)]
+    ) private var transactions: FetchedResults<Transaction>
 
     @State private var showAddPayment = false
 
     var body: some View {
         TabView {
-            NavigationView {
+            NavigationStack {
                 VStack(spacing: 12) {
                     header
                     summaryCard
@@ -19,44 +22,75 @@ struct ContentView: View {
                 .padding()
                 .navigationTitle("QLCT")
                 .sheet(isPresented: $showAddPayment) {
-                    NewPaymentView().environment(\.managedObjectContext, viewContext)
+                    NewPaymentView()
+                        .environment(\.managedObjectContext, viewContext)
                 }
                 .onAppear {
                     SyncManager.syncSharedNotifications(context: viewContext)
+                    PaymentNotificationManager.shared.scheduleAll(for: payments.map { $0 })
                 }
             }
             .tabItem { Label("Home", systemImage: "house.fill") }
 
-            NavigationView { PlanView().environment(\.managedObjectContext, viewContext) }
-                .tabItem { Label("Kế hoạch", systemImage: "calendar") }
+            NavigationStack {
+                PlanView()
+                    .environment(\.managedObjectContext, viewContext)
+            }
+            .tabItem { Label("Kế hoạch", systemImage: "calendar") }
         }
     }
 
-    var header: some View {
+    private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Số lương mới nhất").font(.subheadline).foregroundColor(.secondary)
-                Text(latestSalaryText()).font(.title).bold()
-                Text("Tiết kiệm dự kiến: \(Int(predictedSavings())) VND")
-                    .font(.subheadline).foregroundColor(.green)
+                Text("Số lương mới nhất")
+                    .font(Theme.Fonts.caption)
+                    .foregroundColor(.secondary)
+
+                Text(latestSalaryText())
+                    .font(Theme.Fonts.amount)
+
+                Text("Tiết kiệm dự kiến: \(CurrencyFormatter.vnd(predictedSavings()))")
+                    .font(Theme.Fonts.captionEmphasis)
+                    .foregroundColor(.green)
             }
+
             Spacer()
-            Button(action: { showAddPayment = true }) {
-                Image(systemName: "plus.circle.fill").font(.largeTitle)
+
+            HStack(spacing: 12) {
+                if let bank = latestSalaryBank() {
+                    BankLogoView(bank: bank, size: 48)
+                }
+
+                Button(action: { showAddPayment = true }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(Theme.Fonts.iconLarge)
+                }
+                .accessibilityLabel("Thêm khoản cần trả")
             }
         }
     }
 
-    var summaryCard: some View {
+    private var summaryCard: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text("Tổng còn lại").font(.caption).foregroundColor(.secondary)
-                Text(remainingText()).font(.title2).bold()
+                Text("Tổng còn lại")
+                    .font(Theme.Fonts.caption)
+                    .foregroundColor(.secondary)
+
+                Text(remainingText())
+                    .font(Theme.Fonts.sectionTitle)
             }
+
             Spacer()
+
             VStack(alignment: .leading) {
-                Text("Khoản cần trả sắp tới").font(.caption).foregroundColor(.secondary)
-                Text("\(Int(upcomingDue())) VND").bold()
+                Text("Khoản cần trả sắp tới")
+                    .font(Theme.Fonts.caption)
+                    .foregroundColor(.secondary)
+
+                Text(CurrencyFormatter.vnd(upcomingDue()))
+                    .font(Theme.Fonts.amountSmall)
             }
         }
         .padding()
@@ -64,89 +98,122 @@ struct ContentView: View {
         .cornerRadius(12)
     }
 
-    var paymentsList: some View {
+    private var paymentsList: some View {
         List {
             Section(header: Text("Khoản cần trả")) {
-                ForEach(payments, id: \.id) { p in
+                ForEach(payments, id: \.id) { payment in
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text(p.name)
-                            Text("\(Int(p.amount)) VND")
-                                .font(.caption).foregroundColor(.secondary)
-                            if let d = p.dueDate { Text(d, style: .date).font(.caption2) }
+                        if let bank = BankMatcher.match(payment.name)?.bank {
+                            BankLogoView(bank: bank, size: 40)
                         }
+
+                        VStack(alignment: .leading) {
+                            Text(payment.name)
+                                .font(Theme.Fonts.bodyEmphasis)
+
+                            Text(CurrencyFormatter.vnd(payment.amount))
+                                .font(Theme.Fonts.caption)
+                                .foregroundColor(.secondary)
+
+                            if let dueDate = payment.dueDate {
+                                Text(dueDate, style: .date)
+                                    .font(Theme.Fonts.caption)
+                            }
+                        }
+
                         Spacer()
-                        Button(action: { togglePaid(payment: p) }) {
-                            Text(isPaid(p) ? "Đã trả" : "Mark trả")
-                                .foregroundColor(isPaid(p) ? .gray : .blue)
+
+                        Button(action: { togglePaid(payment: payment) }) {
+                            Text(isPaid(payment) ? "Đã trả" : "Mark trả")
+                                .foregroundColor(isPaid(payment) ? .gray : .blue)
                         }
                     }
                 }
                 .onDelete(perform: deletePayments)
             }
         }
-        .listStyle(InsetGroupedListStyle())
+        .listStyle(.insetGrouped)
     }
 
-    func latestSalaryText() -> String {
-        if let t = transactions.first, t.amount > 0 {
-            return String(format: "VND %.0f", t.amount)
+    private func latestSalaryText() -> String {
+        guard let transaction = transactions.first, transaction.amount > 0 else {
+            return "Chưa có"
         }
-        return "Chưa có"
+
+        return CurrencyFormatter.vnd(transaction.amount)
     }
 
-    func predictedSavings() -> Double {
-        guard let t = transactions.first else { return 0 }
-        return CalculationManager.computeMonthlySavings(salary: t.amount, payments: payments.map { $0 })
+    private func latestSalaryBank() -> BankDefinition? {
+        guard let source = transactions.first?.source else { return nil }
+        if source.hasPrefix("salary:") {
+            let bankID = String(source.dropFirst("salary:".count))
+            return VietnamBankDirectory.banks.first { $0.id == bankID }
+        }
+        return BankMatcher.match(source)?.bank
     }
 
-    func remainingText() -> String {
-        guard let t = transactions.first else { return "0 VND" }
-        let rem = CalculationManager.computeMonthlySavings(salary: t.amount, payments: payments.map { $0 })
-        return "VND \(Int(rem))"
+    private func predictedSavings() -> Double {
+        guard let transaction = transactions.first else { return 0 }
+        return CalculationManager.computeMonthlySavings(salary: transaction.amount, payments: payments.map { $0 })
     }
 
-    func upcomingDue() -> Double {
-        payments.reduce(0.0) { acc, p in
-            if p.isRecurring { return acc + p.amount }
-            if let d = p.dueDate {
-                if Calendar.current.isDate(d, equalTo: Date(), toGranularity: .month) || abs(d.timeIntervalSinceNow) < 60*60*24*30 {
-                    return acc + p.amount
-                }
-            }
-            return acc
+    private func remainingText() -> String {
+        guard let transaction = transactions.first else { return CurrencyFormatter.vnd(0) }
+        let remaining = CalculationManager.computeMonthlySavings(salary: transaction.amount, payments: payments.map { $0 })
+        return CurrencyFormatter.vnd(remaining)
+    }
+
+    private func upcomingDue() -> Double {
+        payments.reduce(0.0) { total, payment in
+            total + CalculationManager.amountDueThisMonth(for: payment)
         }
     }
 
-    func isPaid(_ p: Payment) -> Bool {
-        if let rem = p.remaining?.doubleValue { return rem <= 0 }
-        if p.isRecurring { return false }
-        return p.status == "paid"
+    private func isPaid(_ payment: Payment) -> Bool {
+        if let remaining = payment.remaining?.doubleValue { return remaining <= 0 }
+        if payment.isRecurring { return false }
+        return payment.status == "paid"
     }
 
-    func togglePaid(payment: Payment) {
+    private func togglePaid(payment: Payment) {
         if payment.isRecurring {
-            if payment.remaining == nil { payment.remaining = NSNumber(value: payment.amount) }
-            let newRem = max(0, payment.remaining!.doubleValue - payment.amount)
-            payment.remaining = NSNumber(value: newRem)
+            let currentRemaining = payment.remaining?.doubleValue ?? payment.amount
+            payment.remaining = NSNumber(value: max(0, currentRemaining - payment.amount))
         } else {
             payment.status = "paid"
             payment.remaining = NSNumber(value: 0)
         }
-        do { try viewContext.save() } catch {}
+
+        do {
+            try viewContext.save()
+            if isPaid(payment) {
+                PaymentNotificationManager.shared.cancelReminder(for: payment)
+            } else {
+                PaymentNotificationManager.shared.scheduleDueReminder(for: payment)
+            }
+        } catch {
+            viewContext.rollback()
+        }
     }
 
-    func deletePayments(at offsets: IndexSet) {
-        offsets.forEach { i in
-            let p = payments[i]
-            viewContext.delete(p)
+    private func deletePayments(at offsets: IndexSet) {
+        offsets.forEach { index in
+            let payment = payments[index]
+            PaymentNotificationManager.shared.cancelReminder(for: payment)
+            viewContext.delete(payment)
         }
-        do { try viewContext.save() } catch {}
+
+        do {
+            try viewContext.save()
+        } catch {
+            viewContext.rollback()
+        }
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environment(\.managedObjectContext, PersistenceController(inMemory: true).container.viewContext)
     }
 }
