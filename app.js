@@ -1,8 +1,27 @@
-const STORAGE_KEY = "luongTietKiem.preview.v3"
+const STORAGE_KEY = "luongTietKiem.preview.v4"
+
+const emptyState = {
+  activeTab: "dashboard",
+  checklistFilter: "month",
+  profile: {
+    name: "",
+    createdAt: ""
+  },
+  salary: null,
+  savingsGoal: 0,
+  faceId: false,
+  payments: [],
+  imported: [],
+  notifications: []
+}
 
 const sampleState = {
   activeTab: "dashboard",
   checklistFilter: "month",
+  profile: {
+    name: "Minh",
+    createdAt: "2026-08-26"
+  },
   salary: {
     amount: 22165337,
     bank: "TPBank",
@@ -119,11 +138,23 @@ function clone(value) {
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return clone(sampleState)
+  if (!raw) return clone(emptyState)
   try {
-    return { ...clone(sampleState), ...JSON.parse(raw) }
+    return normalizeState(JSON.parse(raw))
   } catch {
-    return clone(sampleState)
+    return clone(emptyState)
+  }
+}
+
+function normalizeState(saved) {
+  const base = clone(emptyState)
+  return {
+    ...base,
+    ...saved,
+    profile: { ...base.profile, ...(saved.profile || {}) },
+    payments: Array.isArray(saved.payments) ? saved.payments : [],
+    imported: Array.isArray(saved.imported) ? saved.imported : [],
+    notifications: Array.isArray(saved.notifications) ? saved.notifications : []
   }
 }
 
@@ -135,7 +166,7 @@ function money(value) {
   return `${new Intl.NumberFormat("vi-VN").format(Math.round(value || 0))}đ`
 }
 
-function pct(value, total = state.salary.amount) {
+function pct(value, total = state.salary?.amount || 0) {
   if (!total) return "0%"
   return `${(value / total * 100).toFixed(1).replace(".", ",")}%`
 }
@@ -146,7 +177,7 @@ function dueAmount(payment) {
 }
 
 function finance() {
-  const monthlyIncome = Number(state.salary.amount || 0)
+  const monthlyIncome = Number(state.salary?.amount || 0)
   const mandatoryDue = state.payments
     .filter(payment => payment.priority === "MUST_PAY")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
@@ -213,9 +244,17 @@ function statusHtml(payment) {
 
 function render() {
   saveState()
+  const isOnboarding = !state.profile?.name
+  document.body.classList.toggle("is-onboarding", isOnboarding)
   document.querySelectorAll(".tab").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.tab === state.activeTab)
   })
+
+  if (isOnboarding) {
+    document.getElementById("app").innerHTML = renderOnboarding()
+    bindOnboardingActions()
+    return
+  }
 
   const routes = {
     dashboard: renderDashboard,
@@ -229,21 +268,80 @@ function render() {
   bindScreenActions()
 }
 
-function header(title, subtitle = "Chào buổi sáng, Minh") {
+function greeting() {
+  const hour = new Date().getHours()
+  if (hour < 11) return "Chào buổi sáng"
+  if (hour < 18) return "Chào buổi chiều"
+  return "Chào buổi tối"
+}
+
+function userName() {
+  return state.profile?.name || "bạn"
+}
+
+function notificationCount() {
+  return state.notifications.filter(item => !item.read).length
+}
+
+function header(title, subtitle = `${greeting()}, ${userName()}`) {
+  const count = notificationCount()
   return `
     <div class="top-row">
       <div>
         <h1 class="title">${title}</h1>
         <p class="subtitle">${subtitle}</p>
       </div>
-      <button class="bell" aria-label="Thông báo">♢</button>
+      <button class="bell ${count ? "has-count" : ""}" aria-label="Thông báo" data-count="${count}">♢</button>
     </div>
   `
 }
 
+function renderOnboarding() {
+  return `
+    <section class="onboarding">
+      <p class="eyebrow">Thiết lập ban đầu</p>
+      <h1 class="title">Lương & Tiết Kiệm</h1>
+      <p class="subtitle">Tạo hồ sơ trống để tự nhập lương, khoản cần trả và kế hoạch của bạn.</p>
+
+      <form id="onboardingForm" class="card onboarding-card">
+        <div class="field">
+          <label>Tên của bạn</label>
+          <input name="name" autocomplete="given-name" placeholder="Ví dụ: Khánh" required />
+        </div>
+        <div class="field">
+          <label>Mục tiêu tiết kiệm mỗi tháng</label>
+          <input name="savingsGoal" inputmode="numeric" placeholder="Ví dụ: 6.000.000" />
+        </div>
+        <button class="primary">Bắt đầu dùng app</button>
+      </form>
+    </section>
+  `
+}
+
+function bindOnboardingActions() {
+  document.getElementById("onboardingForm").onsubmit = event => {
+    event.preventDefault()
+    const form = new FormData(event.target)
+    const name = String(form.get("name") || "").trim()
+    if (!name) {
+      showToast("Nhập tên trước đã")
+      return
+    }
+
+    state.profile = {
+      name,
+      createdAt: new Date().toISOString()
+    }
+    state.savingsGoal = parseMoney(form.get("savingsGoal"))
+    state.activeTab = "dashboard"
+    showToast("Đã tạo app trắng")
+    render()
+  }
+}
+
 function renderDashboard() {
   const f = finance()
-  const heroDue = 8245000
+  const heroDue = f.remainingMandatory
   const heroAvailable = f.monthlyIncome - heroDue - f.targetSavings
   const nextPayments = state.payments.slice(0, 4)
   const checklist = state.payments.slice(0, 3)
@@ -252,7 +350,7 @@ function renderDashboard() {
     ${header("Lương & Tiết Kiệm")}
     <section class="hero dashboard-hero">
       <div class="hero-grid">
-        ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), "↑ 8,5%")}
+        ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), state.salary ? "Đã nhập" : "Chưa có")}
         ${metric(iconSvg("receipt"), "Phải trả bắt buộc", money(heroDue), pct(heroDue))}
         ${metric(iconSvg("piggy"), "Có thể tiết kiệm", money(f.targetSavings), pct(f.targetSavings))}
         ${metric(iconSvg("wallet"), "Còn lại sau thanh toán", money(heroAvailable), pct(heroAvailable))}
@@ -260,17 +358,13 @@ function renderDashboard() {
     </section>
 
     <section class="section">
-      <div class="salary-card card">
-        ${bankLogo(state.salary.bank)}
-        <div>
-          <strong>Đã nhận diện lương</strong>
-          <div class="desc">Lương đã được nhận diện từ thông báo ngân hàng</div>
-          <div class="bank-line">
-            <strong>${state.salary.bank}</strong> · ${money(state.salary.amount)} · ${state.salary.description}
-          </div>
-        </div>
-        <button class="pill green" data-action="open-import">Nhập lương</button>
-      </div>
+      ${state.salary ? salaryCard() : emptyCard(
+        iconSvg("wallet"),
+        "Chưa nhập lương",
+        "Nhập thẳng số tiền hoặc paste tin nhắn ngân hàng để bắt đầu tính kế hoạch.",
+        "Nhập lương",
+        "open-import"
+      )}
     </section>
 
     <section class="section">
@@ -278,9 +372,13 @@ function renderDashboard() {
         <h2>Việc cần trả sắp đến hạn</h2>
         <button class="link" data-tab-go="payments">Xem tất cả ›</button>
       </div>
-      <div class="card list">
-        ${nextPayments.map(paymentRow).join("")}
-      </div>
+      ${nextPayments.length ? `<div class="card list">${nextPayments.map(paymentRow).join("")}</div>` : emptyCard(
+        iconSvg("receipt"),
+        "Chưa có khoản cần trả",
+        "Thêm tiền nhà, trả góp, thẻ tín dụng hoặc khoản vay để app lập checklist cho bạn.",
+        "Thêm khoản",
+        "open-payment"
+      )}
     </section>
 
     <section class="section">
@@ -300,10 +398,43 @@ function renderDashboard() {
         <h2>Checklist hôm nay</h2>
         <button class="link" data-tab-go="checklist">Xem tất cả ›</button>
       </div>
-      <div class="card list">
-        ${checklist.map(checklistRow).join("")}
-      </div>
+      ${checklist.length ? `<div class="card list">${checklist.map(checklistRow).join("")}</div>` : emptyCard(
+        iconSvg("check"),
+        "Checklist đang trống",
+        "Khi bạn thêm khoản cần trả, checklist thanh toán sẽ tự xuất hiện ở đây.",
+        "Thêm khoản",
+        "open-payment"
+      )}
     </section>
+  `
+}
+
+function salaryCard() {
+  return `
+    <div class="salary-card card">
+      ${bankLogo(state.salary.bank)}
+      <div>
+        <strong>Đã nhận diện lương</strong>
+        <div class="desc">Lương đã được lưu từ dữ liệu bạn nhập</div>
+        <div class="bank-line">
+          <strong>${state.salary.bank}</strong> · ${money(state.salary.amount)} · ${state.salary.description}
+        </div>
+      </div>
+      <button class="pill green" data-action="open-import">Cập nhật lương</button>
+    </div>
+  `
+}
+
+function emptyCard(icon, title, desc, actionLabel, action) {
+  return `
+    <div class="card empty-card">
+      <div class="list-icon blue">${icon}</div>
+      <div>
+        <strong>${title}</strong>
+        <div class="desc">${desc}</div>
+      </div>
+      <button class="pill green" data-action="${action}">${actionLabel}</button>
+    </div>
   `
 }
 
@@ -394,7 +525,13 @@ function renderPayments() {
         <h2>${state.payments.length} khoản phải trả</h2>
         <button class="link">Sắp đến hạn⌄</button>
       </div>
-      <div class="card list">${state.payments.map(paymentRow).join("")}</div>
+      ${state.payments.length ? `<div class="card list">${state.payments.map(paymentRow).join("")}</div>` : emptyCard(
+        iconSvg("receipt"),
+        "Chưa có khoản cần trả",
+        "Bấm dấu cộng để thêm khoản đầu tiên.",
+        "Thêm khoản",
+        "open-payment"
+      )}
       <button class="fab" data-action="open-payment">+</button>
     </section>
   `
@@ -403,7 +540,7 @@ function renderPayments() {
 function renderChecklist() {
   const done = state.payments.filter(payment => payment.paid).length
   return `
-    ${header("Checklist thanh toán", "Quản lý các khoản phải trả đúng hạn, Minh")}
+    ${header("Checklist thanh toán", `Quản lý các khoản phải trả đúng hạn, ${userName()}`)}
     <div class="segmented section">
       <button class="segment ${state.checklistFilter === "today" ? "active" : ""}" data-filter="today">Hôm nay</button>
       <button class="segment ${state.checklistFilter === "week" ? "active" : ""}" data-filter="week">Tuần này</button>
@@ -417,7 +554,13 @@ function renderChecklist() {
       </div>
     </section>
     <section class="section">
-      <div class="card list">${state.payments.map(checklistRow).join("")}</div>
+      ${state.payments.length ? `<div class="card list">${state.payments.map(checklistRow).join("")}</div>` : emptyCard(
+        iconSvg("check"),
+        "Checklist đang trống",
+        "Thêm khoản cần trả để app tự tạo việc cần làm trong tháng.",
+        "Thêm khoản",
+        "open-payment"
+      )}
     </section>
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
       <div class="list-icon blue">i</div>
@@ -461,11 +604,17 @@ function renderAnalytics() {
         <h2>Khuyến nghị thông minh</h2>
         <button class="link">Xem tất cả ›</button>
       </div>
-      <div class="chips">
-        <div class="card" style="min-width:150px;padding:14px"><strong>Dời khoản có thể skip</strong><p class="muted">Tiết kiệm thêm <span class="orange">${money(f.remainingSkippable)}</span></p></div>
-        <div class="card" style="min-width:150px;padding:14px"><strong>Tăng tiết kiệm</strong><p class="muted">Thêm ${money(500000)} mỗi tháng</p></div>
-        <div class="card" style="min-width:150px;padding:14px"><strong>Ưu tiên trả nợ</strong><p class="muted">Giảm chi phí lãi dài hạn</p></div>
-      </div>
+      ${state.payments.length || state.salary ? `<div class="chips">
+          <div class="card" style="min-width:150px;padding:14px"><strong>Dời khoản có thể skip</strong><p class="muted">Tiết kiệm thêm <span class="orange">${money(f.remainingSkippable)}</span></p></div>
+          <div class="card" style="min-width:150px;padding:14px"><strong>Tăng tiết kiệm</strong><p class="muted">Thêm ${money(500000)} mỗi tháng</p></div>
+          <div class="card" style="min-width:150px;padding:14px"><strong>Ưu tiên trả nợ</strong><p class="muted">Giảm chi phí lãi dài hạn</p></div>
+        </div>` : emptyCard(
+          iconSvg("chart"),
+          "Chưa đủ dữ liệu phân tích",
+          "Nhập lương và khoản cần trả để app tính tỷ lệ tiết kiệm cho bạn.",
+          "Nhập lương",
+          "open-import"
+        )}
     </section>
   `
 }
@@ -491,12 +640,15 @@ function renderSettings() {
   return `
     ${header("Cài đặt", "Bảo mật, dữ liệu và import")}
     <section class="section card">
+      ${settingsRow(iconSvg("settings"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
       ${settingsRow(iconSvg("receipt"), "Paste thông báo", "Nhập text notification ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("wallet"), "Đọc từ ảnh chụp màn hình", "Preview mô phỏng OCR on-device", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "49 ngân hàng Việt Nam + badge local", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
       ${settingsRow(iconSvg("settings"), "Khóa ứng dụng", "Face ID hoặc passcode trên iPhone thật", `<button class="switch ${state.faceId ? "on" : ""}" data-action="toggle-face"></button>`)}
       ${settingsRow(iconSvg("chart"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
-      ${settingsRow(iconSvg("calendar"), "Load sample data", "Khôi phục dữ liệu giống mockup", `<button class="link" data-action="load-sample">Load</button>`)}
+      ${settingsRow(iconSvg("wallet"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
+      ${settingsRow(iconSvg("calendar"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
+      ${settingsRow(iconSvg("settings"), "Đưa app về trắng", "Xóa dữ liệu trên máy này và chạy lại onboarding", `<button class="link red" data-action="reset-empty">Reset</button>`)}
     </section>
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
       <div class="list-icon blue">i</div>
@@ -541,6 +693,10 @@ function bindScreenActions() {
     button.onclick = openBankDirectoryModal
   })
 
+  document.querySelectorAll("[data-action='edit-profile']").forEach(button => {
+    button.onclick = openProfileModal
+  })
+
   document.querySelectorAll("[data-action='toggle-paid']").forEach(button => {
     button.onclick = () => togglePaid(button.dataset.id)
   })
@@ -567,6 +723,14 @@ function bindScreenActions() {
   document.querySelectorAll("[data-action='backup']").forEach(button => {
     button.onclick = exportJson
   })
+
+  document.querySelectorAll("[data-action='restore']").forEach(button => {
+    button.onclick = importJson
+  })
+
+  document.querySelectorAll("[data-action='reset-empty']").forEach(button => {
+    button.onclick = resetToEmpty
+  })
 }
 
 function togglePaid(id) {
@@ -587,6 +751,7 @@ function togglePaid(id) {
 }
 
 function openPaymentModal() {
+  const today = new Date().toISOString().slice(0, 10)
   openModal(`
     <h2>Thêm khoản phải trả</h2>
     <form id="paymentForm" class="form">
@@ -600,7 +765,7 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Ngày đến hạn</label>
-        <input name="dueDate" type="date" value="2026-08-25" />
+        <input name="dueDate" type="date" value="${today}" />
       </div>
       <div class="field">
         <label>Loại lặp lại</label>
@@ -640,6 +805,44 @@ function openPaymentModal() {
     })
     closeModal()
     showToast("Đã thêm khoản phải trả")
+    render()
+  }
+}
+
+function openProfileModal() {
+  openModal(`
+    <h2>Hồ sơ cá nhân</h2>
+    <form id="profileForm" class="form">
+      <div class="field">
+        <label>Tên của bạn</label>
+        <input name="name" value="${userName()}" required />
+      </div>
+      <div class="field">
+        <label>Mục tiêu tiết kiệm mỗi tháng</label>
+        <input name="savingsGoal" inputmode="numeric" value="${state.savingsGoal ? new Intl.NumberFormat("vi-VN").format(state.savingsGoal) : ""}" placeholder="Ví dụ: 6.000.000" />
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-close>Đóng</button>
+        <button class="primary">Lưu hồ sơ</button>
+      </div>
+    </form>
+  `)
+
+  document.getElementById("profileForm").onsubmit = event => {
+    event.preventDefault()
+    const form = new FormData(event.target)
+    const name = String(form.get("name") || "").trim()
+    if (!name) {
+      showToast("Nhập tên trước đã")
+      return
+    }
+    state.profile = {
+      ...(state.profile || {}),
+      name
+    }
+    state.savingsGoal = parseMoney(form.get("savingsGoal"))
+    closeModal()
+    showToast("Đã lưu hồ sơ")
     render()
   }
 }
@@ -957,6 +1160,13 @@ function loadSample() {
   render()
 }
 
+function resetToEmpty() {
+  localStorage.removeItem(STORAGE_KEY)
+  state = clone(emptyState)
+  showToast("Đã đưa app về trắng")
+  render()
+}
+
 function exportJson() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" })
   const url = URL.createObjectURL(blob)
@@ -965,6 +1175,33 @@ function exportJson() {
   link.download = "luong-tiet-kiem-backup.json"
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function importJson() {
+  const input = document.createElement("input")
+  input.type = "file"
+  input.accept = "application/json,.json"
+  input.onchange = () => {
+    const file = input.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        state = normalizeState(JSON.parse(reader.result))
+        if (!state.profile.name) {
+          showToast("File thiếu tên hồ sơ")
+          return
+        }
+        showToast("Đã khôi phục dữ liệu")
+        render()
+      } catch {
+        showToast("File backup không hợp lệ")
+      }
+    }
+    reader.readAsText(file)
+  }
+  input.click()
 }
 
 document.querySelectorAll(".tab").forEach(tab => {
@@ -977,10 +1214,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 document.getElementById("openImportFromSide").onclick = openImportModal
 document.getElementById("loadSampleFromSide").onclick = loadSample
 document.getElementById("resetFromSide").onclick = () => {
-  localStorage.removeItem(STORAGE_KEY)
-  state = clone(sampleState)
-  showToast("Đã reset preview")
-  render()
+  resetToEmpty()
 }
 
 render()
