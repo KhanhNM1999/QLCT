@@ -3,6 +3,8 @@ build/
 *.xcarchive
 *.ipa
 *.dSYM
+build-logs*/
+build-logs.zip
 *.xcodeproj/
 *.xcworkspace/
 xcuserdata/
