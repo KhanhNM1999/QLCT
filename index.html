@@ -2,51 +2,70 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>QLCT - Web Preview</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lương & Tiết Kiệm - PC Preview</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app">
-    <header>
-      <div>
-        <div class="label">Số lương mới nhất</div>
-        <div id="salary" class="salary">Chưa có</div>
-        <div id="savings" class="savings">Tiết kiệm dự kiến: 0 VND</div>
+  <div class="workspace">
+    <aside class="notes">
+      <p class="eyebrow">PC Preview</p>
+      <h1>Lương & Tiết Kiệm</h1>
+      <p>
+        Bản này mô phỏng giao diện iPhone để test ngay trên Windows. Native iOS vẫn nằm trong
+        <code>QLCTApp</code>; preview này giúp bạn kiểm tra layout, flow và copy trước khi build IPA.
+      </p>
+      <div class="note-card">
+        <strong>Giới hạn iOS thật</strong>
+        <span>App không đọc được notification ngân hàng tự động. Flow hợp lệ là Paste, nhập tay hoặc OCR screenshot.</span>
       </div>
-      <button id="addPaymentBtn">+ Thêm khoản</button>
-    </header>
+      <div class="shortcuts">
+        <button id="openImportFromSide">Import lương</button>
+        <button id="loadSampleFromSide">Load sample</button>
+        <button id="resetFromSide" class="ghost">Reset data</button>
+      </div>
+    </aside>
 
-    <main>
-      <section class="card">
-        <h3>Khoản cần trả</h3>
-        <ul id="paymentsList" class="list"></ul>
-      </section>
-
-      <section class="card">
-        <h3>Checklist / Kế hoạch</h3>
-        <ul id="planList" class="list"></ul>
-      </section>
-
-      <section class="card">
-        <h3>Simulate Share (notification text)</h3>
-        <textarea id="notifText" placeholder="Dán nội dung thông báo ngân hàng vào đây"></textarea>
-        <div class="row">
-          <button id="shareBtn">Share to App</button>
-          <button id="sample1">Mẫu TPBank</button>
-          <button id="sample2">Mẫu HSBC</button>
+    <main class="phone-shell" aria-label="iPhone preview">
+      <div class="phone">
+        <div class="status-bar">
+          <span>9:41</span>
+          <div class="dynamic-island"></div>
+          <span>▮▮▮  Wi-Fi  ▱</span>
         </div>
-      </section>
 
-      <section class="card small">
-        <h4>Thêm khoản thủ công</h4>
-        <input id="pname" placeholder="Tên khoản" />
-        <input id="pamount" placeholder="Số tiền (VND)" />
-        <label><input id="precurring" type="checkbox"/> Trả góp (định kỳ)</label>
-        <button id="savePayment">Lưu khoản</button>
-      </section>
+        <div id="app" class="screen"></div>
+
+        <nav class="tabbar" aria-label="Main tabs">
+          <button class="tab active" data-tab="dashboard">
+            <span class="tab-icon">⌂</span>
+            <span>Tổng quan</span>
+          </button>
+          <button class="tab" data-tab="payments">
+            <span class="tab-icon">▤</span>
+            <span>Khoản trả</span>
+          </button>
+          <button class="tab" data-tab="checklist">
+            <span class="tab-icon">☑</span>
+            <span>Checklist</span>
+          </button>
+          <button class="tab" data-tab="analytics">
+            <span class="tab-icon">◔</span>
+            <span>Phân tích</span>
+          </button>
+          <button class="tab" data-tab="settings">
+            <span class="tab-icon">⚙</span>
+            <span>Cài đặt</span>
+          </button>
+        </nav>
+      </div>
     </main>
   </div>
+
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="bank-directory.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

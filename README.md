@@ -1,12 +1,28 @@
-Web preview cho QLCT (dùng để test trên Windows)
+QLCT PC Preview
+===============
 
-Mở nhanh: mở file `d:/QLCT/web-preview/index.html` trong trình duyệt (Chrome/Edge/Firefox).
+Đây là bản preview tương tác chạy trên Windows để kiểm tra giao diện và flow theo mockup iPhone. Native iOS source vẫn nằm trong `QLCTApp`.
 
-Chức năng:
-- Mô phỏng màn Home: hiển thị lương mới nhất và tiết kiệm dự kiến.
-- Danh sách khoản cần trả và checklist.
-- Textarea để dán nội dung thông báo ngân hàng và nút "Share to App" để mô phỏng Share Extension.
+Chạy preview:
 
-Ghi chú:
-- Đây chỉ là bản mô phỏng để bạn kiểm tra giao diện và luồng cơ bản trên Windows.
-- Tính năng thật của app iOS nằm trong mã Swift trong thư mục `QLCTApp`.
+```powershell
+cd D:\QLCT\web-preview
+node server.js
+```
+
+Mở:
+
+```text
+http://localhost:5173
+```
+
+Preview hỗ trợ:
+
+- 5 tab: Tổng quan, Khoản trả, Checklist, Phân tích, Cài đặt.
+- Sample data giống mockup.
+- Thêm khoản phải trả.
+- Tick/undo checklist.
+- Paste notification TPBank/HSBC và nhận diện lương.
+- Export JSON backup demo.
+
+Lưu ý: đây không phải iOS Simulator thật. Windows không chạy được iOS Simulator của Apple. Bản này là PC preview để test UI/flow nhanh trước khi build IPA bằng GitHub Actions macOS.
