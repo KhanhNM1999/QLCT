@@ -27,6 +27,7 @@ targets:
           - build
     settings:
       INFOPLIST_FILE: AppInfo.plist
+      PRODUCT_BUNDLE_IDENTIFIER: com.khanhnm.QLCTApp
       CODE_SIGN_ENTITLEMENTS: QLCTApp.entitlements
 
   QLCTShare:
@@ -39,6 +40,7 @@ targets:
       - path: SharedConstants.swift
     settings:
       INFOPLIST_FILE: ShareExtension/Info.plist
+      PRODUCT_BUNDLE_IDENTIFIER: com.khanhnm.QLCTApp.share
       CODE_SIGN_ENTITLEMENTS: ShareExtension/QLCTShare.entitlements
       APPLICATION_EXTENSION_API_ONLY: true
 
