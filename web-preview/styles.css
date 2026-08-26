@@ -233,11 +233,11 @@ strong {
 }
 
 .bell::after {
-  content: "3";
+  content: attr(data-count);
   position: absolute;
   top: -4px;
   right: -2px;
-  display: grid;
+  display: none;
   place-items: center;
   width: 20px;
   height: 20px;
@@ -246,6 +246,36 @@ strong {
   background: var(--red);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
+}
+
+.bell.has-count::after {
+  display: grid;
+}
+
+.is-onboarding .screen {
+  padding-bottom: 34px;
+}
+
+.is-onboarding .tabbar {
+  display: none;
+}
+
+.onboarding {
+  display: grid;
+  align-content: center;
+  min-height: 100%;
+  gap: 14px;
+}
+
+.onboarding .title {
+  margin-top: 0;
+}
+
+.onboarding-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 16px;
 }
 
 .hero {
@@ -514,7 +544,8 @@ strong {
 }
 
 .salary-card,
-.info-card {
+.info-card,
+.empty-card {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
   gap: 12px;
@@ -522,13 +553,15 @@ strong {
   padding: 14px;
 }
 
-.salary-card .pill {
+.salary-card .pill,
+.empty-card .pill {
   grid-column: 2;
   justify-self: start;
   margin-top: 8px;
 }
 
 .salary-card .desc,
+.empty-card .desc,
 .row-sub {
   color: var(--muted);
   font-size: var(--text-detail);
@@ -1015,16 +1048,31 @@ strong {
 
 @media (max-width: 900px) {
   .workspace {
-    grid-template-columns: 1fr;
-    padding: 14px;
+    display: block;
+    width: 100%;
+    min-height: 100vh;
+    padding: 0;
   }
 
   .notes {
-    position: static;
+    display: none;
   }
 
   .phone {
-    width: min(430px, 100vw - 24px);
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone-shell {
+    display: block;
+  }
+
+  .screen {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 
