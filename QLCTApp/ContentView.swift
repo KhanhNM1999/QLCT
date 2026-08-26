@@ -298,7 +298,7 @@ private struct ChecklistScreen: View {
                 InfoCard(
                     icon: "info.circle",
                     title: "Tự động xử lý tháng sau",
-                    body: "Khoản một lần đã hoàn thành sẽ tự ẩn. Khoản trả góp giảm số kỳ và tổng nợ còn lại."
+                    text: "Khoản một lần đã hoàn thành sẽ tự ẩn. Khoản trả góp giảm số kỳ và tổng nợ còn lại."
                 )
             }
             .padding(16)
@@ -390,7 +390,7 @@ private struct SettingsScreen: View {
                 InfoCard(
                     icon: "info.circle",
                     title: "Public app khả thi",
-                    body: "Không cần App Store nếu dùng bản web. Native iOS cài bằng Sideloadly cần Developer Mode."
+                    text: "Không cần App Store nếu dùng bản web. Native iOS cài bằng Sideloadly cần Developer Mode."
                 )
             }
             .padding(16)
@@ -785,7 +785,7 @@ private struct SettingsRow: View {
 private struct InfoCard: View {
     let icon: String
     let title: String
-    let body: String
+    let text: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -798,7 +798,7 @@ private struct InfoCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(Theme.Fonts.bodyEmphasis)
-                Text(body)
+                Text(text)
                     .font(Theme.Fonts.caption)
                     .foregroundColor(Theme.muted)
             }
