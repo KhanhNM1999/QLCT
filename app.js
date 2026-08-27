@@ -18,6 +18,7 @@ const emptyState = {
   },
   dataSafety: {
     lastBackupAt: "",
+    lastRecoveryKeyAt: "",
     persistentStorage: false,
     persistentAskedAt: ""
   },
@@ -269,6 +270,38 @@ function bindMoneyInput(input) {
   input.addEventListener("input", () => {
     input.value = formatNumberInput(input.value)
   })
+}
+
+function base64UrlEncode(text) {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ""
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
+}
+
+function base64UrlDecode(value) {
+  const normalized = String(value || "").trim().replace(/^QLCT-KEY-/i, "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/")
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
+}
+
+function makeRecoveryCode() {
+  const payload = {
+    app: "QLCT",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    state
+  }
+  return `QLCT-KEY-${base64UrlEncode(JSON.stringify(payload))}`
+}
+
+function parseRecoveryCode(code) {
+  const payload = JSON.parse(base64UrlDecode(code))
+  if (payload?.app !== "QLCT" || !payload.state) throw new Error("Invalid recovery code")
+  return normalizeState(payload.state)
 }
 
 function pct(value, total = salaryForViewingMonth()?.amount || 0) {
@@ -564,6 +597,7 @@ function renderOnboarding() {
         <button class="primary">Bắt đầu dùng app</button>
       </form>
       <div class="form-actions stack-actions onboarding-restore">
+        <button type="button" class="ghost" data-action="restore-key">Nhập mã khôi phục dữ liệu</button>
         <button type="button" class="ghost" data-action="restore">Khôi phục dữ liệu từ backup</button>
       </div>
     </section>
@@ -573,6 +607,10 @@ function renderOnboarding() {
 function bindOnboardingActions() {
   document.querySelectorAll("[data-action='restore']").forEach(button => {
     button.onclick = importJson
+  })
+
+  document.querySelectorAll("[data-action='restore-key']").forEach(button => {
+    button.onclick = openRestoreKeyModal
   })
 
   document.getElementById("onboardingForm").onsubmit = event => {
@@ -995,11 +1033,17 @@ function dataSafetyText() {
   return `${persistent} · ${backup}`
 }
 
+function recoveryKeyText() {
+  return state.dataSafety?.lastRecoveryKeyAt ? `Tạo lần cuối ${formatDate(eventDate(state.dataSafety.lastRecoveryKeyAt))}` : "Chưa tạo mã"
+}
+
 function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
       ${settingsRow(iconSvg("wallet"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
+      ${settingsRow(iconSvg("chart"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
+      ${settingsRow(iconSvg("wallet"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
       ${settingsRow(iconSvg("settings"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
       ${settingsRow(iconSvg("receipt"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "Danh sách ngân hàng để chọn khi nhận diện lương", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
@@ -1076,6 +1120,14 @@ function bindScreenActions() {
 
   document.querySelectorAll("[data-action='restore']").forEach(button => {
     button.onclick = importJson
+  })
+
+  document.querySelectorAll("[data-action='recovery-key']").forEach(button => {
+    button.onclick = openRecoveryKeyModal
+  })
+
+  document.querySelectorAll("[data-action='restore-key']").forEach(button => {
+    button.onclick = openRestoreKeyModal
   })
 
   document.querySelectorAll("[data-action='protect-storage']").forEach(button => {
@@ -1434,6 +1486,79 @@ function togglePaid(id) {
 
   showToast(payment.paid ? "Đã đánh dấu thanh toán" : "Đã undo thanh toán")
   render()
+}
+
+function openRecoveryKeyModal() {
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    lastRecoveryKeyAt: new Date().toISOString()
+  }
+  saveState()
+  const code = makeRecoveryCode()
+
+  openModal(`
+    <h2>Mã khôi phục dữ liệu</h2>
+    <div class="form">
+      <div class="field">
+        <label>Lưu mã này ở nơi riêng</label>
+        <textarea id="recoveryCodeOutput" readonly>${code}</textarea>
+      </div>
+      <div class="note-card compact-note">
+        <strong>Mã này chứa toàn bộ dữ liệu hiện tại</strong>
+        <span>Sau khi thêm/sửa/xóa dữ liệu quan trọng, hãy tạo mã mới. Nếu gỡ app, nhập lại mã này để khôi phục snapshot đã lưu trong mã.</span>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="primary" data-action="copy-recovery-key">Copy mã</button>
+        <button type="button" class="ghost" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelector("[data-action='copy-recovery-key']").onclick = async () => {
+    const text = document.getElementById("recoveryCodeOutput").value
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast("Đã copy mã khôi phục")
+    } catch {
+      document.getElementById("recoveryCodeOutput").select()
+      showToast("Chọn mã rồi copy thủ công")
+    }
+  }
+}
+
+function openRestoreKeyModal() {
+  openModal(`
+    <h2>Nhập mã khôi phục</h2>
+    <div class="form">
+      <div class="field">
+        <label>Mã khôi phục</label>
+        <textarea id="recoveryCodeInput" placeholder="Dán mã bắt đầu bằng QLCT-KEY-"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="primary" data-action="apply-recovery-key">Khôi phục</button>
+        <button type="button" class="ghost" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelector("[data-action='apply-recovery-key']").onclick = () => {
+    const code = document.getElementById("recoveryCodeInput").value
+    try {
+      const restored = parseRecoveryCode(code)
+      if (!restored.profile.name) {
+        showToast("Mã thiếu hồ sơ")
+        return
+      }
+      state = restored
+      saveState()
+      closeModal()
+      showToast("Đã khôi phục dữ liệu từ mã")
+      render()
+    } catch {
+      showToast("Mã khôi phục không hợp lệ")
+    }
+  }
 }
 
 function openPaymentModal() {
@@ -2004,7 +2129,7 @@ function loadSample() {
 }
 
 function resetToEmpty() {
-  localStorage.removeItem(STORAGE_KEY)
+  ;[STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach(key => localStorage.removeItem(key))
   state = clone(emptyState)
   showToast("Đã đưa app về trắng")
   render()
@@ -2067,7 +2192,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=19").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=20").catch(() => {})
 }
 
 installScrollGuard()
