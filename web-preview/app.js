@@ -239,6 +239,10 @@ function addMonths(key, delta) {
   return formatMonthKey(date)
 }
 
+function dateForViewingMonth() {
+  return isViewingCurrentMonth() ? new Date().toISOString().slice(0, 10) : `${viewingMonth()}-01`
+}
+
 function matchesViewingMonth(value) {
   return monthKey(value) === viewingMonth()
 }
@@ -263,6 +267,45 @@ function salaryForViewingMonth() {
 
   if (state.salary && matchesViewingMonth(state.salary.date || state.salary.savedAt)) return state.salary
   return null
+}
+
+function latestSalaryEntryForViewingMonth() {
+  const salaries = state.imported
+    .filter(item => item.salary && matchesViewingMonth(item.isoDate || item.date || item.savedAt))
+    .sort((a, b) => eventDate(b.isoDate || b.date || b.savedAt).localeCompare(eventDate(a.isoDate || a.date || a.savedAt)))
+  if (salaries.length) return salaries[0]
+  if (state.salary && matchesViewingMonth(state.salary.date || state.salary.savedAt)) return state.salary
+  return null
+}
+
+function upsertSalaryForMonth(salary, importedRecord) {
+  const key = monthKey(salary.date || salary.savedAt)
+  state.imported = state.imported.filter(item => {
+    if (!item.salary) return true
+    return monthKey(item.isoDate || item.date || item.savedAt) !== key
+  })
+  state.salary = salary
+  state.imported.unshift(importedRecord)
+  state.selectedMonth = key
+}
+
+function dueDateValue(payment) {
+  const value = eventDate(payment.dueDate || payment.createdAt)
+  return value || "9999-12-31"
+}
+
+function alertablePaymentsForViewingMonth() {
+  const today = new Date().toISOString().slice(0, 10)
+  return sortPayments(paymentsForViewingMonth().filter(payment => {
+    if (payment.paid || payment.status === "PAID") return false
+    return dueDateValue(payment) <= today
+  }))
+}
+
+function notificationBelongsToViewingMonth(item) {
+  const date = eventDate(item.date || item.createdAt || item.savedAt)
+  if (!date) return isViewingCurrentMonth()
+  return monthKey(date) === viewingMonth() && date <= new Date().toISOString().slice(0, 10)
 }
 
 function dueAmount(payment) {
@@ -417,7 +460,7 @@ function userName() {
 }
 
 function notificationCount() {
-  return state.notifications.filter(item => !item.read).length + paymentsForViewingMonth().filter(payment => !payment.paid).length
+  return state.notifications.filter(item => !item.read && notificationBelongsToViewingMonth(item)).length + alertablePaymentsForViewingMonth().length
 }
 
 function header(title, subtitle = `${greeting()}, ${userName()}`) {
@@ -498,7 +541,7 @@ function renderDashboard() {
     ${monthSelector()}
     <section class="hero dashboard-hero">
       <div class="hero-grid">
-        ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), state.salary ? "Đã nhập" : "Chưa có")}
+        ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), f.monthSalary ? "Đã nhập" : "Chưa có")}
         ${metric(iconSvg("receipt"), "Phải trả bắt buộc", money(heroDue), pct(heroDue))}
         ${metric(iconSvg("piggy"), "Có thể tiết kiệm", money(f.targetSavings), pct(f.targetSavings))}
         ${metric(iconSvg("wallet"), "Còn lại sau thanh toán", money(heroAvailable), pct(heroAvailable))}
@@ -1143,8 +1186,8 @@ function deletePayment(id) {
 }
 
 function openNotificationsModal() {
-  const upcoming = sortPayments(paymentsForViewingMonth().filter(payment => !payment.paid)).slice(0, 8)
-  const customNotifications = state.notifications.map(item => ({
+  const upcoming = alertablePaymentsForViewingMonth().slice(0, 8)
+  const customNotifications = state.notifications.filter(notificationBelongsToViewingMonth).map(item => ({
     id: item.id,
     title: item.title || "Thông báo",
     desc: item.desc || item.message || "",
@@ -1449,6 +1492,11 @@ function openBankDirectoryModal() {
 }
 
 function openImportModal() {
+  const currentSalary = latestSalaryEntryForViewingMonth()
+  const currentAmount = currentSalary?.amount ? formatNumberInput(currentSalary.amount) : ""
+  const currentBank = currentSalary?.bank || ""
+  const currentRaw = currentSalary?.raw || ""
+  const currentIsPasted = Boolean(currentRaw)
   openModal(`
     <h2>Nhập lương</h2>
     <div class="form">
@@ -1466,11 +1514,11 @@ function openImportModal() {
       <div id="manualSalaryFields" class="form sub-form">
         <div class="field">
           <label>Số tiền lương</label>
-          <input id="manualAmount" inputmode="numeric" placeholder="22,165,337" />
+          <input id="manualAmount" inputmode="numeric" placeholder="22,165,337" value="${currentAmount}" />
         </div>
         <div class="field">
           <label>Ngân hàng</label>
-          <input id="manualBank" list="manualBankOptions" placeholder="TPBank, Vietcombank, HSBC..." />
+          <input id="manualBank" list="manualBankOptions" placeholder="TPBank, Vietcombank, HSBC..." value="${escapeHtml(currentBank)}" />
           <datalist id="manualBankOptions">
             ${VIETNAM_BANKS.map(bank => `<option value="${bank.displayName}">${bank.shortName}</option>`).join("")}
             <option value="Nhập tay">Ngân hàng khác</option>
@@ -1481,7 +1529,7 @@ function openImportModal() {
       <div id="pasteSalaryFields" class="form sub-form hidden">
         <div class="field">
           <label>Nội dung tin nhắn lương</label>
-          <textarea id="bankText" placeholder="Dán nội dung tin nhắn ngân hàng ở đây"></textarea>
+          <textarea id="bankText" placeholder="Dán nội dung tin nhắn ngân hàng ở đây">${escapeHtml(currentRaw)}</textarea>
         </div>
         <button class="primary" id="analyzeBank">Phân tích</button>
       </div>
@@ -1531,6 +1579,13 @@ function openImportModal() {
     analysisPreview.innerHTML = ""
   }
   syncOptionalFields()
+  if (currentIsPasted) {
+    pasteMessageToggle.checked = true
+    manualAmountToggle.checked = false
+    syncOptionalFields()
+    parsed = parseBankMessage(currentRaw)
+    showParsedPreview()
+  }
 
   document.getElementById("analyzeBank").onclick = () => {
     parsed = parseBankMessage(input.value)
@@ -1552,25 +1607,26 @@ function openImportModal() {
         return
       }
 
-      state.salary = {
+      const salary = {
         amount,
         bank,
-        date: new Date().toISOString().slice(0, 10),
+        date: dateForViewingMonth(),
         savedAt: new Date().toISOString(),
         time: "",
         description: "Nhập tay",
         confidence: "MANUAL"
       }
-      state.imported.unshift({
+      upsertSalaryForMonth(salary, {
         id: crypto.randomUUID(),
         raw: "",
         amount,
         bank,
+        isoDate: salary.date,
+        date: formatDate(salary.date),
         savedAt: new Date().toISOString(),
         type: "CREDIT",
         salary: true
       })
-      state.selectedMonth = monthKey(state.salary.date || state.salary.savedAt)
       closeModal()
       showToast("Đã lưu khoản lương")
       state.activeTab = "dashboard"
@@ -1605,25 +1661,25 @@ function openImportModal() {
       return
     }
 
-    state.salary = {
+    const salary = {
       amount,
       bank,
-      date: parsed?.isoDate || new Date().toISOString().slice(0, 10),
+      date: parsed?.isoDate || dateForViewingMonth(),
       savedAt: new Date().toISOString(),
       time: parsed?.time || "",
       description: parsed?.description || "Tin nhắn ngân hàng",
       confidence: parsed?.confidence || "MEDIUM"
     }
-    state.imported.unshift({
+    upsertSalaryForMonth(salary, {
       id: crypto.randomUUID(),
       raw: input.value,
       ...(parsed || {}),
       amount,
       bank,
+      isoDate: salary.date,
       savedAt: new Date().toISOString(),
       salary: true
     })
-    state.selectedMonth = monthKey(state.salary.date || state.salary.savedAt)
     closeModal()
     showToast("Đã lưu khoản lương")
     state.activeTab = "dashboard"
@@ -1851,7 +1907,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=14").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=15").catch(() => {})
 }
 
 installScrollGuard()
