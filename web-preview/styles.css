@@ -33,6 +33,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -1022,6 +1023,10 @@ strong {
   transition: transform 180ms ease;
 }
 
+.toast:empty {
+  display: none;
+}
+
 .toast.show {
   transform: translate(-50%, 0);
 }
@@ -1070,9 +1075,21 @@ strong {
     display: block;
   }
 
+  .status-bar {
+    display: none;
+  }
+
   .screen {
+    height: 100vh;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
     padding-left: 16px;
     padding-right: 16px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  }
+
+  .tabbar {
+    height: calc(76px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
 }
 
