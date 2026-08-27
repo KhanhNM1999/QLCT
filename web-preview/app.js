@@ -5,6 +5,7 @@ const emptyState = {
   checklistFilter: "month",
   paymentFilter: "all",
   paymentSort: "dueDate",
+  selectedMonth: "",
   profile: {
     name: "",
     createdAt: ""
@@ -20,6 +21,7 @@ const sampleState = {
   checklistFilter: "month",
   paymentFilter: "all",
   paymentSort: "dueDate",
+  selectedMonth: "2026-08",
   profile: {
     name: "Minh",
     createdAt: "2026-08-26"
@@ -154,6 +156,7 @@ function normalizeState(saved) {
     profile: { ...base.profile, ...(saved.profile || {}) },
     paymentFilter: saved.paymentFilter || base.paymentFilter,
     paymentSort: saved.paymentSort || base.paymentSort,
+    selectedMonth: saved.selectedMonth || currentMonthKey(),
     payments: Array.isArray(saved.payments) ? saved.payments : [],
     imported: Array.isArray(saved.imported) ? saved.imported : [],
     notifications: Array.isArray(saved.notifications) ? saved.notifications : []
@@ -168,9 +171,57 @@ function money(value) {
   return `${new Intl.NumberFormat("vi-VN").format(Math.round(value || 0))}đ`
 }
 
-function pct(value, total = state.salary?.amount || 0) {
+function pct(value, total = salaryForViewingMonth()?.amount || 0) {
   if (!total) return "0%"
   return `${(value / total * 100).toFixed(1).replace(".", ",")}%`
+}
+
+function formatMonthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
+function currentMonthKey() {
+  return formatMonthKey(new Date())
+}
+
+function viewingMonth() {
+  return state.selectedMonth || currentMonthKey()
+}
+
+function isViewingCurrentMonth() {
+  return viewingMonth() === currentMonthKey()
+}
+
+function addMonths(key, delta) {
+  const [year, month] = String(key || currentMonthKey()).split("-").map(Number)
+  const date = new Date(year, month - 1 + delta, 1)
+  return formatMonthKey(date)
+}
+
+function matchesViewingMonth(value) {
+  return monthKey(value) === viewingMonth()
+}
+
+function paymentsForViewingMonth() {
+  return state.payments.filter(payment => matchesViewingMonth(payment.dueDate || payment.createdAt))
+}
+
+function salaryForViewingMonth() {
+  const salaries = state.imported.filter(item => item.salary && matchesViewingMonth(item.isoDate || item.date || item.savedAt))
+  if (salaries.length) {
+    const latest = [...salaries].sort((a, b) => eventDate(b.isoDate || b.date || b.savedAt).localeCompare(eventDate(a.isoDate || a.date || a.savedAt)))[0]
+    return {
+      amount: salaries.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+      bank: latest.bank || "Lương",
+      date: latest.isoDate || eventDate(latest.date) || latest.savedAt || "",
+      time: latest.time || "",
+      description: latest.description || "Lương đã lưu",
+      confidence: latest.confidence || "MANUAL"
+    }
+  }
+
+  if (state.salary && matchesViewingMonth(state.salary.date || state.salary.savedAt)) return state.salary
+  return null
 }
 
 function dueAmount(payment) {
@@ -179,29 +230,32 @@ function dueAmount(payment) {
 }
 
 function finance() {
-  const monthlyIncome = Number(state.salary?.amount || 0)
-  const mandatoryDue = state.payments
+  const monthPayments = paymentsForViewingMonth()
+  const monthSalary = salaryForViewingMonth()
+  const monthlyIncome = Number(monthSalary?.amount || 0)
+  const mandatoryDue = monthPayments
     .filter(payment => payment.priority === "MUST_PAY")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-  const skippableDue = state.payments
+  const skippableDue = monthPayments
     .filter(payment => payment.priority === "SKIPPABLE")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-  const remainingMandatory = state.payments
+  const remainingMandatory = monthPayments
     .filter(payment => payment.priority === "MUST_PAY")
     .reduce((sum, payment) => sum + dueAmount(payment), 0)
-  const remainingSkippable = state.payments
+  const remainingSkippable = monthPayments
     .filter(payment => payment.priority === "SKIPPABLE")
     .reduce((sum, payment) => sum + dueAmount(payment), 0)
-  const paidThisMonth = state.payments.reduce((sum, payment) => sum + (payment.paid ? Number(payment.amount || 0) : 0), 0)
+  const paidThisMonth = monthPayments.reduce((sum, payment) => sum + (payment.paid ? Number(payment.amount || 0) : 0), 0)
   const availableAfterMandatory = monthlyIncome - remainingMandatory
   const availableAfterBills = monthlyIncome - remainingMandatory - remainingSkippable
-  const totalOutstandingDebt = state.payments.reduce((sum, payment) => {
+  const totalOutstandingDebt = monthPayments.reduce((sum, payment) => {
     if (payment.recurrence === "INSTALLMENT") return sum + Number(payment.remainingPrincipal || 0)
     return sum + dueAmount(payment)
   }, 0)
 
   return {
     monthlyIncome,
+    monthSalary,
     mandatoryDue,
     skippableDue,
     paidThisMonth,
@@ -223,7 +277,7 @@ function sortPayments(payments) {
 }
 
 function filteredPayments() {
-  const filtered = state.payments.filter(payment => {
+  const filtered = paymentsForViewingMonth().filter(payment => {
     if (state.paymentFilter === "must") return payment.priority === "MUST_PAY"
     if (state.paymentFilter === "skippable") return payment.priority === "SKIPPABLE"
     if (state.paymentFilter === "installment") return payment.recurrence === "INSTALLMENT"
@@ -236,7 +290,9 @@ function filteredPayments() {
 
 function checklistPayments() {
   const today = new Date()
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const [viewYear, viewMonth] = viewingMonth().split("-").map(Number)
+  const baseDate = isViewingCurrentMonth() ? today : new Date(viewYear, viewMonth - 1, 1)
+  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())
   const end = new Date(start)
   if (state.checklistFilter === "today") {
     end.setDate(start.getDate() + 1)
@@ -246,7 +302,7 @@ function checklistPayments() {
     end.setMonth(start.getMonth() + 1)
   }
 
-  return sortPayments(state.payments.filter(payment => {
+  return sortPayments(paymentsForViewingMonth().filter(payment => {
     const due = new Date(payment.dueDate || payment.createdAt || new Date())
     return due >= start && due < end
   }))
@@ -320,7 +376,7 @@ function userName() {
 }
 
 function notificationCount() {
-  return state.notifications.filter(item => !item.read).length
+  return state.notifications.filter(item => !item.read).length + paymentsForViewingMonth().filter(payment => !payment.paid).length
 }
 
 function header(title, subtitle = `${greeting()}, ${userName()}`) {
@@ -333,6 +389,20 @@ function header(title, subtitle = `${greeting()}, ${userName()}`) {
       </div>
       <button class="bell ${count ? "has-count" : ""}" aria-label="Thông báo" data-count="${count}">♢</button>
     </div>
+  `
+}
+
+function monthSelector() {
+  return `
+    <section class="month-switcher section">
+      <button type="button" class="month-arrow" data-action="month-prev" aria-label="Tháng trước">‹</button>
+      <button type="button" class="month-current" data-action="open-month-picker">
+        <span>Tháng đang xem</span>
+        <strong>${monthLabel(viewingMonth())}</strong>
+      </button>
+      <button type="button" class="month-arrow" data-action="month-next" aria-label="Tháng sau">›</button>
+      ${isViewingCurrentMonth() ? "" : `<button type="button" class="month-today" data-action="month-today">Về tháng này</button>`}
+    </section>
   `
 }
 
@@ -378,11 +448,13 @@ function renderDashboard() {
   const f = finance()
   const heroDue = f.remainingMandatory
   const heroAvailable = f.availableAfterSavings
-  const nextPayments = state.payments.slice(0, 4)
-  const checklist = state.payments.slice(0, 3)
+  const monthPayments = sortPayments(paymentsForViewingMonth())
+  const nextPayments = monthPayments.slice(0, 4)
+  const checklist = monthPayments.slice(0, 3)
 
   return `
     ${header("Lương & Tiết Kiệm")}
+    ${monthSelector()}
     <section class="hero dashboard-hero">
       <div class="hero-grid">
         ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), state.salary ? "Đã nhập" : "Chưa có")}
@@ -393,7 +465,7 @@ function renderDashboard() {
     </section>
 
     <section class="section">
-      ${state.salary ? salaryCard() : emptyCard(
+      ${f.monthSalary ? salaryCard(f.monthSalary) : emptyCard(
         iconSvg("wallet"),
         "Chưa nhập lương",
         "Nhập thẳng số tiền hoặc paste tin nhắn ngân hàng để bắt đầu tính kế hoạch.",
@@ -445,14 +517,15 @@ function renderDashboard() {
 }
 
 function salaryCard() {
+  const salary = arguments[0] || state.salary
   return `
     <div class="salary-card card">
-      ${bankLogo(state.salary.bank)}
+      ${bankLogo(salary.bank)}
       <div>
         <strong>Đã nhận diện lương</strong>
         <div class="desc">Lương đã được lưu từ dữ liệu bạn nhập</div>
         <div class="bank-line">
-          <strong>${state.salary.bank}</strong> · ${money(state.salary.amount)} · ${state.salary.description}
+          <strong>${salary.bank}</strong> · ${money(salary.amount)} · ${salary.description}
         </div>
       </div>
       <button class="pill green" data-action="open-import">Cập nhật lương</button>
@@ -555,6 +628,7 @@ function renderPayments() {
   }
   return `
     ${header("Khoản phải trả", "")}
+    ${monthSelector()}
     <div class="chips section">
       ${Object.entries(filterLabels).map(([key, label]) => `<button class="chip ${state.paymentFilter === key ? "active" : ""}" data-payment-filter="${key}">${label}</button>`).join("")}
     </div>
@@ -587,6 +661,7 @@ function renderChecklist() {
   const done = payments.filter(payment => payment.paid).length
   return `
     ${header("Checklist thanh toán", `Quản lý các khoản phải trả đúng hạn, ${userName()}`)}
+    ${monthSelector()}
     <div class="segmented section">
       <button class="segment ${state.checklistFilter === "today" ? "active" : ""}" data-filter="today">Hôm nay</button>
       <button class="segment ${state.checklistFilter === "week" ? "active" : ""}" data-filter="week">Tuần này</button>
@@ -678,7 +753,7 @@ function renderAnalytics() {
         <h2>Khuyến nghị thông minh</h2>
         <button class="link" data-action="open-recommendations">Xem tất cả ›</button>
       </div>
-      ${state.payments.length || state.salary ? `<div class="chips">
+      ${paymentsForViewingMonth().length || f.monthSalary ? `<div class="chips">
           <div class="card" style="min-width:150px;padding:14px"><strong>Dời khoản có thể skip</strong><p class="muted">Tiết kiệm thêm <span class="orange">${money(f.remainingSkippable)}</span></p></div>
           <div class="card" style="min-width:150px;padding:14px"><strong>Tăng tiết kiệm</strong><p class="muted">Thêm ${money(500000)} mỗi tháng</p></div>
           <div class="card" style="min-width:150px;padding:14px"><strong>Ưu tiên trả nợ</strong><p class="muted">Giảm chi phí lãi dài hạn</p></div>
@@ -861,6 +936,31 @@ function bindScreenActions() {
   document.querySelectorAll("[data-action='open-recommendations']").forEach(button => {
     button.onclick = openRecommendationsModal
   })
+
+  document.querySelectorAll("[data-action='month-prev']").forEach(button => {
+    button.onclick = () => {
+      state.selectedMonth = addMonths(viewingMonth(), -1)
+      render()
+    }
+  })
+
+  document.querySelectorAll("[data-action='month-next']").forEach(button => {
+    button.onclick = () => {
+      state.selectedMonth = addMonths(viewingMonth(), 1)
+      render()
+    }
+  })
+
+  document.querySelectorAll("[data-action='month-today']").forEach(button => {
+    button.onclick = () => {
+      state.selectedMonth = currentMonthKey()
+      render()
+    }
+  })
+
+  document.querySelectorAll("[data-action='open-month-picker']").forEach(button => {
+    button.onclick = openMonthPickerModal
+  })
 }
 
 function cyclePaymentSort() {
@@ -868,6 +968,30 @@ function cyclePaymentSort() {
   const index = order.indexOf(state.paymentSort)
   state.paymentSort = order[(index + 1) % order.length]
   render()
+}
+
+function openMonthPickerModal() {
+  openModal(`
+    <h2>Chọn tháng</h2>
+    <form id="monthPickerForm" class="form">
+      <div class="field">
+        <label>Tháng cần xem</label>
+        <input name="month" type="month" value="${viewingMonth()}" required />
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-close>Hủy</button>
+        <button class="primary">Xem tháng này</button>
+      </div>
+    </form>
+  `)
+
+  document.getElementById("monthPickerForm").onsubmit = event => {
+    event.preventDefault()
+    const form = new FormData(event.target)
+    state.selectedMonth = String(form.get("month") || currentMonthKey())
+    closeModal()
+    render()
+  }
 }
 
 function escapeHtml(value) {
@@ -977,7 +1101,7 @@ function deletePayment(id) {
 }
 
 function openNotificationsModal() {
-  const upcoming = sortPayments(state.payments.filter(payment => !payment.paid)).slice(0, 8)
+  const upcoming = sortPayments(paymentsForViewingMonth().filter(payment => !payment.paid)).slice(0, 8)
   const customNotifications = state.notifications.map(item => ({
     id: item.id,
     title: item.title || "Thông báo",
@@ -1128,7 +1252,7 @@ function togglePaid(id) {
 }
 
 function openPaymentModal() {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = isViewingCurrentMonth() ? new Date().toISOString().slice(0, 10) : `${viewingMonth()}-01`
   openModal(`
     <h2>Thêm khoản phải trả</h2>
     <form id="paymentForm" class="form">
@@ -1416,6 +1540,7 @@ function openImportModal() {
         type: "CREDIT",
         salary: true
       })
+      state.selectedMonth = monthKey(state.salary.date || state.salary.savedAt)
       closeModal()
       showToast("Đã lưu khoản lương")
       state.activeTab = "dashboard"
@@ -1465,6 +1590,7 @@ function openImportModal() {
       savedAt: new Date().toISOString(),
       salary: true
     })
+    state.selectedMonth = monthKey(state.salary.date || state.salary.savedAt)
     closeModal()
     showToast("Đã lưu khoản lương")
     state.activeTab = "dashboard"
@@ -1692,7 +1818,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=8").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=9").catch(() => {})
 }
 
 render()
