@@ -8,7 +8,6 @@ const emptyState = {
     createdAt: ""
   },
   salary: null,
-  faceId: false,
   payments: [],
   imported: [],
   notifications: []
@@ -29,7 +28,6 @@ const sampleState = {
     description: "Payslip FSOFT HO CHUYEN TIEN LUONG THANG 8",
     confidence: "HIGH"
   },
-  faceId: false,
   payments: [
     {
       id: "home-rent",
@@ -445,7 +443,7 @@ function metric(icon, label, value, sub) {
 function paymentRow(payment) {
   const installment = payment.recurrence === "INSTALLMENT"
     ? `<div class="row-sub">Kỳ ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0}</div>`
-    : `<div class="row-sub">${payment.recurrence === "ONCE" ? "Một lần" : "Tháng 8/2026"}</div>`
+    : `<div class="row-sub">${payment.recurrence === "ONCE" ? "Một lần" : monthLabel(monthKey(payment.dueDate))}</div>`
 
   return `
     <div class="row-item" data-payment-id="${payment.id}">
@@ -568,6 +566,8 @@ function renderChecklist() {
 function renderAnalytics() {
   const f = finance()
   const savingRate = f.monthlyIncome ? f.targetSavings / f.monthlyIncome * 100 : 0
+  const history = historySummary()
+  const events = historyEvents()
   return `
     ${header("Phân tích & Tiết kiệm")}
     <section class="hero analytics-hero">
@@ -594,6 +594,32 @@ function renderAnalytics() {
     </section>
     <section class="section">
       <div class="section-head">
+        <h2>Lịch sử theo tháng</h2>
+        <button class="link" data-action="backup">Sao lưu ›</button>
+      </div>
+      ${history.length ? `<div class="card list">${history.map(historyRow).join("")}</div>` : emptyCard(
+        iconSvg("calendar"),
+        "Chưa có lịch sử",
+        "Khi bạn nhập lương hoặc thêm khoản cần trả, app sẽ tự lưu theo ngày/tháng/năm.",
+        "Nhập lương",
+        "open-import"
+      )}
+    </section>
+    <section class="section">
+      <div class="section-head">
+        <h2>Dòng thời gian</h2>
+        <button class="link" data-action="backup">Export ›</button>
+      </div>
+      ${events.length ? `<div class="card list">${events.map(historyEventRow).join("")}</div>` : emptyCard(
+        iconSvg("calendar"),
+        "Chưa có dữ liệu theo ngày",
+        "Lương và khoản cần trả sẽ được lưu với ngày phát sinh để xem lại sau.",
+        "Thêm khoản",
+        "open-payment"
+      )}
+    </section>
+    <section class="section">
+      <div class="section-head">
         <h2>Khuyến nghị thông minh</h2>
         <button class="link">Xem tất cả ›</button>
       </div>
@@ -609,6 +635,46 @@ function renderAnalytics() {
           "open-import"
         )}
     </section>
+  `
+}
+
+function historyEventRow(event) {
+  return `
+    <div class="timeline-row">
+      <div class="list-icon ${event.type === "salary" ? "green" : "blue"}">${event.icon}</div>
+      <div>
+        <strong>${event.title}</strong>
+        <div class="row-sub">${formatDate(event.date)} · ${event.note}</div>
+      </div>
+      <strong class="${event.type === "salary" ? "green" : "red"}">${money(event.amount)}</strong>
+    </div>
+  `
+}
+
+function historyRow(item) {
+  return `
+    <div class="history-row">
+      <div>
+        <strong>${monthLabel(item.key)}</strong>
+        <div class="row-sub">${item.payments} khoản cần trả</div>
+      </div>
+      <div>
+        <span>Lương</span>
+        <strong class="green">${money(item.salary)}</strong>
+      </div>
+      <div>
+        <span>Đã trả</span>
+        <strong>${money(item.paid)}</strong>
+      </div>
+      <div>
+        <span>Còn phải trả</span>
+        <strong class="red">${money(item.due)}</strong>
+      </div>
+      <div>
+        <span>Tiết kiệm</span>
+        <strong class="${item.saving >= 0 ? "green" : "red"}">${money(item.saving)}</strong>
+      </div>
+    </div>
   `
 }
 
@@ -637,7 +703,6 @@ function renderSettings() {
       ${settingsRow(iconSvg("receipt"), "Paste thông báo", "Nhập text notification ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("wallet"), "Đọc từ ảnh chụp màn hình", "Preview mô phỏng OCR on-device", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "49 ngân hàng Việt Nam + badge local", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
-      ${settingsRow(iconSvg("settings"), "Khóa ứng dụng", "Face ID hoặc passcode trên iPhone thật", `<button class="switch ${state.faceId ? "on" : ""}" data-action="toggle-face"></button>`)}
       ${settingsRow(iconSvg("chart"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
       ${settingsRow(iconSvg("wallet"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
       ${settingsRow(iconSvg("calendar"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
@@ -646,8 +711,8 @@ function renderSettings() {
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
       <div class="list-icon blue">i</div>
       <div>
-        <strong>Public app khả thi</strong>
-        <div class="desc">Không cần App Store. GitHub Actions có thể build unsigned IPA, rồi bạn dùng Sideloadly trên Windows để ký/cài vào iPhone. Apple ID miễn phí thường phải refresh khoảng 7 ngày.</div>
+        <strong>Dữ liệu nằm trên máy bạn</strong>
+        <div class="desc">App web/PWA lưu dữ liệu trên thiết bị đang dùng. Dùng Export JSON định kỳ để giữ bản sao và Import lại khi đổi máy.</div>
       </div>
     </section>
   `
@@ -697,14 +762,6 @@ function bindScreenActions() {
   document.querySelectorAll("[data-filter]").forEach(button => {
     button.onclick = () => {
       state.checklistFilter = button.dataset.filter
-      render()
-    }
-  })
-
-  document.querySelectorAll("[data-action='toggle-face']").forEach(button => {
-    button.onclick = () => {
-      state.faceId = !state.faceId
-      showToast(state.faceId ? "Đã bật khóa ứng dụng" : "Đã tắt khóa ứng dụng")
       render()
     }
   })
@@ -790,6 +847,7 @@ function openPaymentModal() {
       name: form.get("name"),
       amount: parseMoney(form.get("amount")),
       dueDate: form.get("dueDate"),
+      createdAt: new Date().toISOString(),
       recurrence: form.get("recurrence"),
       priority: form.get("priority"),
       category: form.get("recurrence") === "INSTALLMENT" ? "laptop" : "other",
@@ -1011,6 +1069,7 @@ function openImportModal() {
         amount,
         bank: "Nhập tay",
         date: new Date().toISOString().slice(0, 10),
+        savedAt: new Date().toISOString(),
         time: "",
         description: "Nhập tay",
         confidence: "MANUAL"
@@ -1020,6 +1079,7 @@ function openImportModal() {
         raw: "",
         amount,
         bank: "Nhập tay",
+        savedAt: new Date().toISOString(),
         type: "CREDIT",
         salary: true
       })
@@ -1058,6 +1118,7 @@ function openImportModal() {
       amount,
       bank,
       date: parsed?.isoDate || new Date().toISOString().slice(0, 10),
+      savedAt: new Date().toISOString(),
       time: parsed?.time || "",
       description: parsed?.description || "Nhập tay",
       confidence: parsed?.confidence || "MANUAL"
@@ -1068,6 +1129,7 @@ function openImportModal() {
       ...(parsed || {}),
       amount,
       bank,
+      savedAt: new Date().toISOString(),
       salary: true
     })
     closeModal()
@@ -1117,6 +1179,97 @@ function formatDate(value) {
   if (!value) return ""
   const [year, month, day] = value.split("-")
   return `${day}/${month}/${year}`
+}
+
+function monthKey(value) {
+  const date = String(value || new Date().toISOString())
+  const vnDate = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (vnDate) return `${vnDate[3]}-${vnDate[2].padStart(2, "0")}`
+  return date.slice(0, 7)
+}
+
+function monthLabel(key) {
+  const [year, month] = key.split("-")
+  if (!year || !month) return "Không rõ tháng"
+  return `Tháng ${Number(month)}/${year}`
+}
+
+function historySummary() {
+  const byMonth = new Map()
+
+  const ensure = key => {
+    if (!byMonth.has(key)) {
+      byMonth.set(key, {
+        key,
+        salary: 0,
+        paid: 0,
+        due: 0,
+        payments: 0
+      })
+    }
+    return byMonth.get(key)
+  }
+
+  for (const item of state.imported.filter(item => item.salary)) {
+    const bucket = ensure(monthKey(item.isoDate || item.savedAt || item.date))
+    bucket.salary += Number(item.amount || 0)
+  }
+
+  if (state.salary && !state.imported.some(item => item.salary)) {
+    const bucket = ensure(monthKey(state.salary.date || state.salary.savedAt))
+    bucket.salary += Number(state.salary.amount || 0)
+  }
+
+  for (const payment of state.payments) {
+    const bucket = ensure(monthKey(payment.dueDate || payment.createdAt))
+    bucket.payments += 1
+    if (payment.paid || payment.status === "PAID") {
+      bucket.paid += Number(payment.amount || 0)
+    } else {
+      bucket.due += Number(payment.amount || 0)
+    }
+  }
+
+  return Array.from(byMonth.values())
+    .map(item => ({
+      ...item,
+      saving: item.salary - item.paid - item.due
+    }))
+    .sort((a, b) => b.key.localeCompare(a.key))
+}
+
+function historyEvents() {
+  const salaries = state.imported
+    .filter(item => item.salary)
+    .map(item => ({
+      type: "salary",
+      icon: iconSvg("wallet"),
+      title: item.bank || "Lương",
+      note: "Lương đã lưu",
+      amount: Number(item.amount || 0),
+      date: eventDate(item.isoDate || item.savedAt || item.date)
+    }))
+
+  const payments = state.payments.map(payment => ({
+    type: "payment",
+    icon: iconSvg("receipt"),
+    title: payment.name,
+    note: payment.paid ? "Đã thanh toán" : "Khoản cần trả",
+    amount: Number(payment.amount || 0),
+    date: eventDate(payment.dueDate || payment.createdAt)
+  }))
+
+  return [...salaries, ...payments]
+    .filter(item => item.date)
+    .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+function eventDate(value) {
+  const date = String(value || "")
+  const vnDate = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (vnDate) return `${vnDate[3]}-${vnDate[2].padStart(2, "0")}-${vnDate[1].padStart(2, "0")}`
+  if (/^\d{4}-\d{2}-\d{2}/.test(date)) return date.slice(0, 10)
+  return ""
 }
 
 function openModal(html) {
@@ -1206,7 +1359,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=6").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=7").catch(() => {})
 }
 
 render()

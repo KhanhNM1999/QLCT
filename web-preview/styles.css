@@ -64,24 +64,15 @@ strong {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(260px, 360px) minmax(430px, 1fr);
-  gap: 34px;
-  align-items: start;
-  width: min(1260px, 100%);
+  display: block;
+  width: min(432px, 100%);
+  min-height: 100vh;
   margin: 0 auto;
-  padding: 32px;
+  padding: 0;
 }
 
 .notes {
-  position: sticky;
-  top: 32px;
-  padding: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px);
+  display: none;
 }
 
 .notes h1 {
@@ -144,19 +135,18 @@ strong {
 }
 
 .phone-shell {
-  display: flex;
-  justify-content: center;
+  display: block;
 }
 
 .phone {
   position: relative;
-  width: 432px;
-  height: 912px;
+  width: min(432px, 100vw);
+  height: 100vh;
   overflow: hidden;
-  border: 1px solid rgba(7, 29, 52, 0.13);
-  border-radius: 48px;
+  border: 0;
+  border-radius: 0;
   background: #fbfdff;
-  box-shadow: 0 30px 80px rgba(7, 29, 52, 0.25);
+  box-shadow: none;
 }
 
 .screen {
@@ -786,6 +776,50 @@ strong {
   border-bottom: 0;
 }
 
+.history-row {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(4, minmax(72px, 1fr));
+  gap: 10px;
+  align-items: start;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-row:last-child {
+  border-bottom: 0;
+}
+
+.history-row span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.history-row strong {
+  display: block;
+  font-size: var(--text-detail);
+  line-height: 1.25;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline-row:last-child {
+  border-bottom: 0;
+}
+
+.timeline-row > strong {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .switch {
   width: 54px;
   height: 32px;
@@ -1058,6 +1092,10 @@ strong {
   .tabbar {
     height: calc(76px + env(safe-area-inset-bottom, 0px));
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  }
+
+  .history-row {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
