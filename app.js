@@ -1,4 +1,10 @@
 const STORAGE_KEY = "luongTietKiem.preview.v5"
+const LEGACY_STORAGE_KEYS = [
+  "luongTietKiem.preview.v4",
+  "luongTietKiem.preview.v3",
+  "luongTietKiem.preview.v2",
+  "luongTietKiem.preview.v1"
+]
 
 const emptyState = {
   activeTab: "dashboard",
@@ -9,6 +15,11 @@ const emptyState = {
   profile: {
     name: "",
     createdAt: ""
+  },
+  dataSafety: {
+    lastBackupAt: "",
+    persistentStorage: false,
+    persistentAskedAt: ""
   },
   salary: null,
   payments: [],
@@ -140,13 +151,20 @@ function clone(value) {
 }
 
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return clone(emptyState)
-  try {
-    return normalizeState(JSON.parse(raw))
-  } catch {
-    return clone(emptyState)
+  const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]
+  for (const key of keys) {
+    const raw = localStorage.getItem(key)
+    if (!raw) continue
+
+    try {
+      const normalized = normalizeState(JSON.parse(raw))
+      if (key !== STORAGE_KEY) localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+      return normalized
+    } catch {
+      continue
+    }
   }
+  return clone(emptyState)
 }
 
 function normalizeState(saved) {
@@ -155,6 +173,7 @@ function normalizeState(saved) {
     ...base,
     ...saved,
     profile: { ...base.profile, ...(saved.profile || {}) },
+    dataSafety: { ...base.dataSafety, ...(saved.dataSafety || {}) },
     paymentFilter: saved.paymentFilter || base.paymentFilter,
     paymentSort: saved.paymentSort || base.paymentSort,
     selectedMonth: saved.selectedMonth || currentMonthKey(),
@@ -166,6 +185,46 @@ function normalizeState(saved) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+async function refreshStorageStatus() {
+  if (!navigator.storage?.persisted) return
+  try {
+    const persisted = await navigator.storage.persisted()
+    if (state.dataSafety?.persistentStorage !== persisted) {
+      state.dataSafety = { ...emptyState.dataSafety, ...(state.dataSafety || {}), persistentStorage: persisted }
+      saveState()
+      if (state.activeTab === "settings") render()
+    }
+  } catch {
+  }
+}
+
+async function requestStorageProtection() {
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    persistentAskedAt: new Date().toISOString()
+  }
+
+  if (!navigator.storage?.persist) {
+    state.dataSafety.persistentStorage = false
+    saveState()
+    showToast("Thiết bị này không hỗ trợ lưu bền")
+    render()
+    return
+  }
+
+  try {
+    state.dataSafety.persistentStorage = await navigator.storage.persist()
+    saveState()
+    showToast(state.dataSafety.persistentStorage ? "Đã bật lưu bền trên máy" : "Trình duyệt chưa cấp lưu bền")
+  } catch {
+    state.dataSafety.persistentStorage = false
+    saveState()
+    showToast("Không bật được lưu bền")
+  }
+  render()
 }
 
 function installScrollGuard() {
@@ -504,11 +563,18 @@ function renderOnboarding() {
         </div>
         <button class="primary">Bắt đầu dùng app</button>
       </form>
+      <div class="form-actions stack-actions onboarding-restore">
+        <button type="button" class="ghost" data-action="restore">Khôi phục dữ liệu từ backup</button>
+      </div>
     </section>
   `
 }
 
 function bindOnboardingActions() {
+  document.querySelectorAll("[data-action='restore']").forEach(button => {
+    button.onclick = importJson
+  })
+
   document.getElementById("onboardingForm").onsubmit = event => {
     event.preventDefault()
     const form = new FormData(event.target)
@@ -523,6 +589,7 @@ function bindOnboardingActions() {
       createdAt: new Date().toISOString()
     }
     state.activeTab = "dashboard"
+    requestStorageProtection()
     showToast("Đã tạo app trắng")
     render()
   }
@@ -922,10 +989,17 @@ function analysisLine(icon, label, value, total, color) {
   `
 }
 
+function dataSafetyText() {
+  const persistent = state.dataSafety?.persistentStorage ? "Lưu bền đã bật" : "Lưu bền chưa bật"
+  const backup = state.dataSafety?.lastBackupAt ? `Backup ${formatDate(eventDate(state.dataSafety.lastBackupAt))}` : "Chưa có backup"
+  return `${persistent} · ${backup}`
+}
+
 function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
+      ${settingsRow(iconSvg("wallet"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
       ${settingsRow(iconSvg("settings"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
       ${settingsRow(iconSvg("receipt"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "Danh sách ngân hàng để chọn khi nhận diện lương", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
@@ -1002,6 +1076,10 @@ function bindScreenActions() {
 
   document.querySelectorAll("[data-action='restore']").forEach(button => {
     button.onclick = importJson
+  })
+
+  document.querySelectorAll("[data-action='protect-storage']").forEach(button => {
+    button.onclick = requestStorageProtection
   })
 
   document.querySelectorAll("[data-action='reset-empty']").forEach(button => {
@@ -1933,6 +2011,12 @@ function resetToEmpty() {
 }
 
 function exportJson() {
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    lastBackupAt: new Date().toISOString()
+  }
+  saveState()
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" })
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
@@ -1983,8 +2067,9 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=18").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=19").catch(() => {})
 }
 
 installScrollGuard()
+refreshStorageStatus()
 render()
