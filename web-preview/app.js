@@ -1434,32 +1434,42 @@ function openBankDirectoryModal() {
 
 function openImportModal() {
   openModal(`
-    <h2>Nhận diện lương</h2>
+    <h2>Nhập lương</h2>
     <div class="form">
       <div class="salary-options">
         <label class="check-option">
           <input id="manualAmountToggle" name="salaryInputMode" type="radio" value="manual" checked />
-          <span>Nhập lương</span>
+          <span>Nhập tay</span>
         </label>
         <label class="check-option">
-          <input id="bankPickerToggle" name="salaryInputMode" type="radio" value="bank" />
-          <span>Lựa chọn ngân hàng</span>
+          <input id="pasteMessageToggle" name="salaryInputMode" type="radio" value="paste" />
+          <span>Paste tin nhắn</span>
         </label>
       </div>
-      <div class="field hidden" id="bankTextField">
-        <label>Nhập nội dung giao dịch</label>
-        <textarea id="bankText" placeholder="Dán nội dung tin nhắn ngân hàng ở đây"></textarea>
+
+      <div id="manualSalaryFields" class="form sub-form">
+        <div class="field">
+          <label>Số tiền lương</label>
+          <input id="manualAmount" inputmode="numeric" placeholder="22.165.337" />
+        </div>
+        <div class="field">
+          <label>Ngân hàng</label>
+          <input id="manualBank" list="manualBankOptions" placeholder="TPBank, Vietcombank, HSBC..." />
+          <datalist id="manualBankOptions">
+            ${VIETNAM_BANKS.map(bank => `<option value="${bank.displayName}">${bank.shortName}</option>`).join("")}
+            <option value="Nhập tay">Ngân hàng khác</option>
+          </datalist>
+        </div>
       </div>
-      <div class="field" id="manualAmountField">
-        <label>Số tiền lương</label>
-        <input id="manualAmount" inputmode="numeric" placeholder="22.165.337" />
+
+      <div id="pasteSalaryFields" class="form sub-form hidden">
+        <div class="field">
+          <label>Nội dung tin nhắn lương</label>
+          <textarea id="bankText" placeholder="Dán nội dung tin nhắn ngân hàng ở đây"></textarea>
+        </div>
+        <button class="primary" id="analyzeBank">Phân tích</button>
       </div>
-      <div class="field hidden" id="bankPickerField">
-        <label>Chọn ngân hàng</label>
-        <input id="salaryBankSearch" placeholder="Tìm TPBank, VCB, HSBC..." />
-        <div id="salaryBankList" class="salary-bank-list"></div>
-      </div>
-      <button class="primary hidden" id="analyzeBank">Phân tích</button>
+
       <div id="analysisPreview"></div>
       <div class="form-actions">
         <button type="button" class="ghost" data-close>Đóng</button>
@@ -1469,67 +1479,16 @@ function openImportModal() {
   `)
 
   let parsed = null
-  let selectedBank = null
   const input = document.getElementById("bankText")
   const manualAmountToggle = document.getElementById("manualAmountToggle")
-  const bankPickerToggle = document.getElementById("bankPickerToggle")
-  const bankTextField = document.getElementById("bankTextField")
-  const manualAmountField = document.getElementById("manualAmountField")
-  const bankPickerField = document.getElementById("bankPickerField")
+  const pasteMessageToggle = document.getElementById("pasteMessageToggle")
+  const manualSalaryFields = document.getElementById("manualSalaryFields")
+  const pasteSalaryFields = document.getElementById("pasteSalaryFields")
   const manualAmountInput = document.getElementById("manualAmount")
-  const salaryBankSearch = document.getElementById("salaryBankSearch")
-  const salaryBankList = document.getElementById("salaryBankList")
-  const analyzeButton = document.getElementById("analyzeBank")
+  const manualBankInput = document.getElementById("manualBank")
   const analysisPreview = document.getElementById("analysisPreview")
 
-  const renderSalaryBankList = () => {
-    const query = normalizeBankText(salaryBankSearch.value)
-    const banks = VIETNAM_BANKS.filter(bank => {
-      if (!query) return true
-      return [bank.displayName, bank.shortName, ...bank.aliases]
-        .some(value => normalizeBankText(value).includes(query))
-    })
-
-    salaryBankList.innerHTML = banks.map(bank => `
-      <button class="salary-bank-choice ${selectedBank?.id === bank.id ? "selected" : ""}" type="button" data-bank-id="${bank.id}">
-        ${bankLogo(bank, "small")}
-        <span>
-          <strong>${bank.displayName}</strong>
-          <span class="row-sub">${bank.shortName}</span>
-        </span>
-      </button>
-    `).join("")
-
-    salaryBankList.querySelectorAll("[data-bank-id]").forEach(button => {
-      button.onclick = () => {
-        selectedBank = findBankByID(button.dataset.bankId)
-        renderSalaryBankList()
-      }
-    })
-  }
-
-  const syncOptionalFields = () => {
-    const isBankMode = bankPickerToggle.checked
-    bankTextField.classList.toggle("hidden", !isBankMode)
-    bankPickerField.classList.toggle("hidden", !isBankMode)
-    analyzeButton.classList.toggle("hidden", !isBankMode)
-    manualAmountField.classList.toggle("hidden", isBankMode)
-    analysisPreview.innerHTML = ""
-    parsed = null
-    if (isBankMode) renderSalaryBankList()
-  }
-
-  manualAmountToggle.onchange = syncOptionalFields
-  bankPickerToggle.onchange = syncOptionalFields
-  salaryBankSearch.oninput = renderSalaryBankList
-  syncOptionalFields()
-
-  document.getElementById("analyzeBank").onclick = () => {
-    parsed = parseBankMessage(input.value)
-    if (parsed && bankPickerToggle.checked && !selectedBank) {
-      selectedBank = findBankByName(parsed.bank)
-      renderSalaryBankList()
-    }
+  const showParsedPreview = () => {
     analysisPreview.innerHTML = parsed
       ? `<div class="card" style="padding:14px;margin-top:10px">
           <strong>${parsed.bank}</strong> · <span class="${parsed.type === "CREDIT" ? "green" : "red"}">${parsed.type}</span>
@@ -1539,19 +1498,46 @@ function openImportModal() {
         </div>`
       : `<div class="card" style="padding:14px;margin-top:10px;color:var(--red)">Không parse được nội dung này.</div>`
   }
-  document.getElementById("saveSalary").onclick = () => {
-    const isBankMode = bankPickerToggle.checked
 
-    if (!isBankMode) {
+  const syncOptionalFields = () => {
+    const isPasteMode = pasteMessageToggle.checked
+    manualSalaryFields.classList.toggle("hidden", isPasteMode)
+    pasteSalaryFields.classList.toggle("hidden", !isPasteMode)
+    analysisPreview.innerHTML = ""
+    parsed = null
+  }
+
+  manualAmountToggle.onchange = syncOptionalFields
+  pasteMessageToggle.onchange = syncOptionalFields
+  input.oninput = () => {
+    parsed = null
+    analysisPreview.innerHTML = ""
+  }
+  syncOptionalFields()
+
+  document.getElementById("analyzeBank").onclick = () => {
+    parsed = parseBankMessage(input.value)
+    showParsedPreview()
+  }
+
+  document.getElementById("saveSalary").onclick = () => {
+    const isPasteMode = pasteMessageToggle.checked
+
+    if (!isPasteMode) {
       const amount = parseMoney(manualAmountInput.value)
+      const bank = String(manualBankInput.value || "").trim()
       if (!amount) {
         showToast("Nhập số tiền lương trước đã")
+        return
+      }
+      if (!bank) {
+        showToast("Nhập ngân hàng nhận lương")
         return
       }
 
       state.salary = {
         amount,
-        bank: "Nhập tay",
+        bank,
         date: new Date().toISOString().slice(0, 10),
         savedAt: new Date().toISOString(),
         time: "",
@@ -1562,7 +1548,7 @@ function openImportModal() {
         id: crypto.randomUUID(),
         raw: "",
         amount,
-        bank: "Nhập tay",
+        bank,
         savedAt: new Date().toISOString(),
         type: "CREDIT",
         salary: true
@@ -1580,22 +1566,25 @@ function openImportModal() {
       return
     }
 
-    if (!selectedBank) {
-      showToast("Chọn một ngân hàng trong danh sách")
-      return
-    }
-
     if (!parsed) parsed = parseBankMessage(input.value)
     const amount = parsed?.amount || 0
-    const bank = selectedBank.displayName
+    const bank = parsed?.bank || "Không rõ"
 
     if (!amount) {
-      showToast("Nhập số tiền lương trước đã")
+      showToast("Không nhận diện được số tiền")
+      showParsedPreview()
       return
     }
 
     if (parsed.type !== "CREDIT") {
       showToast("Chưa có giao dịch tiền vào hợp lệ")
+      showParsedPreview()
+      return
+    }
+
+    if (bank === "Không rõ") {
+      showToast("Không nhận diện được ngân hàng")
+      showParsedPreview()
       return
     }
 
@@ -1605,8 +1594,8 @@ function openImportModal() {
       date: parsed?.isoDate || new Date().toISOString().slice(0, 10),
       savedAt: new Date().toISOString(),
       time: parsed?.time || "",
-      description: parsed?.description || "Nhập tay",
-      confidence: parsed?.confidence || "MANUAL"
+      description: parsed?.description || "Tin nhắn ngân hàng",
+      confidence: parsed?.confidence || "MEDIUM"
     }
     state.imported.unshift({
       id: crypto.randomUUID(),
@@ -1845,7 +1834,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=12").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=13").catch(() => {})
 }
 
 installScrollGuard()
