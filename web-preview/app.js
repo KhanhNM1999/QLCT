@@ -1205,4 +1205,8 @@ document.getElementById("resetFromSide").onclick = () => {
   resetToEmpty()
 }
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js?v=5").catch(() => {})
+}
+
 render()
