@@ -215,6 +215,50 @@ strong {
   display: grid;
 }
 
+.month-switcher {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.month-arrow,
+.month-current,
+.month-today {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+}
+
+.month-arrow {
+  font-size: var(--icon-md);
+  font-weight: var(--weight-semibold);
+}
+
+.month-current {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.month-current span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.month-current strong {
+  font-size: var(--text-body);
+}
+
+.month-today {
+  grid-column: 1 / -1;
+  color: var(--teal);
+  font-weight: var(--weight-semibold);
+}
+
 .is-onboarding .screen {
   padding-bottom: 34px;
 }
