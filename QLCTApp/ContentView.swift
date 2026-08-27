@@ -3,7 +3,7 @@ import WebKit
 
 struct ContentView: View {
     var body: some View {
-        WebPreviewView(url: URL(string: "https://khanhnm1999.github.io/QLCT/?v=10")!)
+        WebPreviewView(url: URL(string: "https://khanhnm1999.github.io/QLCT/?v=11")!)
             .ignoresSafeArea()
     }
 }
@@ -15,10 +15,14 @@ private struct WebPreviewView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.websiteDataStore = .default()
+        configuration.userContentController.addUserScript(Self.disableZoomScript)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
+        webView.scrollView.minimumZoomScale = 1
+        webView.scrollView.maximumZoomScale = 1
+        webView.scrollView.delegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.navigationDelegate = context.coordinator
@@ -35,7 +39,19 @@ private struct WebPreviewView: UIViewRepresentable {
         Coordinator(homeURL: url)
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    private static let disableZoomScript = WKUserScript(
+        source: """
+        const viewport = document.querySelector('meta[name="viewport"]') || document.createElement('meta');
+        viewport.name = 'viewport';
+        viewport.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+        document.head.appendChild(viewport);
+        document.documentElement.style.touchAction = 'manipulation';
+        """,
+        injectionTime: .atDocumentEnd,
+        forMainFrameOnly: true
+    )
+
+    final class Coordinator: NSObject, WKNavigationDelegate, UIScrollViewDelegate {
         let homeURL: URL
 
         init(homeURL: URL) {
@@ -53,6 +69,10 @@ private struct WebPreviewView: UIViewRepresentable {
             }
 
             decisionHandler(host == homeURL.host ? .allow : .cancel)
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            nil
         }
     }
 }
