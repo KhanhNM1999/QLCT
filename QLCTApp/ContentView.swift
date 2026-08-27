@@ -3,7 +3,7 @@ import WebKit
 
 struct ContentView: View {
     var body: some View {
-        WebPreviewView(url: URL(string: "https://khanhnm1999.github.io/QLCT/?v=9")!)
+        WebPreviewView(url: URL(string: "https://khanhnm1999.github.io/QLCT/?v=10")!)
             .ignoresSafeArea()
     }
 }
