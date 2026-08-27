@@ -1540,11 +1540,8 @@ function openImportModal() {
         </div>
         <div class="field">
           <label>Ngân hàng</label>
-          <input id="manualBank" list="manualBankOptions" placeholder="TPBank, Vietcombank, HSBC..." value="${escapeHtml(currentBank)}" />
-          <datalist id="manualBankOptions">
-            ${VIETNAM_BANKS.map(bank => `<option value="${bank.displayName}">${bank.shortName}</option>`).join("")}
-            <option value="Nhập tay">Ngân hàng khác</option>
-          </datalist>
+          <input id="manualBankSearch" placeholder="Tìm TPBank, Vietcombank, HSBC..." />
+          <div id="manualBankList" class="salary-bank-list"></div>
         </div>
       </div>
 
@@ -1565,15 +1562,65 @@ function openImportModal() {
   `)
 
   let parsed = null
+  let selectedManualBank = findBankByName(currentBank)
+  let manualCustomBank = selectedManualBank ? "" : currentBank
   const input = document.getElementById("bankText")
   const manualAmountToggle = document.getElementById("manualAmountToggle")
   const pasteMessageToggle = document.getElementById("pasteMessageToggle")
   const manualSalaryFields = document.getElementById("manualSalaryFields")
   const pasteSalaryFields = document.getElementById("pasteSalaryFields")
   const manualAmountInput = document.getElementById("manualAmount")
-  const manualBankInput = document.getElementById("manualBank")
+  const manualBankSearch = document.getElementById("manualBankSearch")
+  const manualBankList = document.getElementById("manualBankList")
   const analysisPreview = document.getElementById("analysisPreview")
   bindMoneyInput(manualAmountInput)
+
+  const renderManualBankList = () => {
+    const query = normalizeBankText(manualBankSearch.value)
+    const banks = VIETNAM_BANKS.filter(bank => {
+      if (!query) return true
+      return [bank.displayName, bank.shortName, ...bank.aliases]
+        .some(value => normalizeBankText(value).includes(query))
+    }).slice(0, 18)
+
+    const bankRows = banks.map(bank => `
+      <button class="salary-bank-choice ${selectedManualBank?.id === bank.id ? "selected" : ""}" type="button" data-manual-bank-id="${bank.id}">
+        ${bankLogo(bank, "small")}
+        <span>
+          <strong>${bank.displayName}</strong>
+          <span class="row-sub">${bank.shortName}</span>
+        </span>
+      </button>
+    `).join("")
+
+    const customRow = query
+      ? `<button class="salary-bank-choice ${manualCustomBank && !selectedManualBank ? "selected" : ""}" type="button" data-manual-bank-custom="${escapeHtml(manualBankSearch.value)}">
+          ${bankLogo(null, "small")}
+          <span>
+            <strong>${escapeHtml(manualBankSearch.value)}</strong>
+            <span class="row-sub">Dùng tên ngân hàng tự nhập</span>
+          </span>
+        </button>`
+      : ""
+
+    manualBankList.innerHTML = bankRows + customRow
+    manualBankList.querySelectorAll("[data-manual-bank-id]").forEach(button => {
+      button.onclick = () => {
+        selectedManualBank = findBankByID(button.dataset.manualBankId)
+        manualCustomBank = ""
+        manualBankSearch.value = selectedManualBank?.displayName || ""
+        renderManualBankList()
+      }
+    })
+    manualBankList.querySelectorAll("[data-manual-bank-custom]").forEach(button => {
+      button.onclick = () => {
+        selectedManualBank = null
+        manualCustomBank = button.dataset.manualBankCustom
+        manualBankSearch.value = manualCustomBank
+        renderManualBankList()
+      }
+    })
+  }
 
   const showParsedPreview = () => {
     analysisPreview.innerHTML = parsed
@@ -1600,7 +1647,14 @@ function openImportModal() {
     parsed = null
     analysisPreview.innerHTML = ""
   }
+  manualBankSearch.oninput = () => {
+    selectedManualBank = null
+    manualCustomBank = manualBankSearch.value.trim()
+    renderManualBankList()
+  }
   syncOptionalFields()
+  manualBankSearch.value = currentBank
+  renderManualBankList()
   if (currentIsPasted) {
     pasteMessageToggle.checked = true
     manualAmountToggle.checked = false
@@ -1619,7 +1673,7 @@ function openImportModal() {
 
     if (!isPasteMode) {
       const amount = parseMoney(manualAmountInput.value)
-      const bank = String(manualBankInput.value || "").trim()
+      const bank = selectedManualBank?.displayName || String(manualCustomBank || manualBankSearch.value || "").trim()
       if (!amount) {
         showToast("Nhập số tiền lương trước đã")
         return
@@ -1929,7 +1983,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=16").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=17").catch(() => {})
 }
 
 installScrollGuard()
