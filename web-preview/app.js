@@ -198,6 +198,20 @@ function money(value) {
   return `${new Intl.NumberFormat("vi-VN").format(Math.round(value || 0))}đ`
 }
 
+function formatNumberInput(value) {
+  const digits = String(value || "").replace(/\D/g, "")
+  if (!digits) return ""
+  return new Intl.NumberFormat("en-US").format(Number(digits))
+}
+
+function bindMoneyInput(input) {
+  if (!input) return
+  input.value = formatNumberInput(input.value)
+  input.addEventListener("input", () => {
+    input.value = formatNumberInput(input.value)
+  })
+}
+
 function pct(value, total = salaryForViewingMonth()?.amount || 0) {
   if (!total) return "0%"
   return `${(value / total * 100).toFixed(1).replace(".", ",")}%`
@@ -1073,7 +1087,7 @@ function openEditPaymentModal(id) {
       </div>
       <div class="field">
         <label>Số tiền</label>
-        <input name="amount" inputmode="numeric" value="${money(payment.amount).replace("đ", "")}" required />
+        <input name="amount" inputmode="numeric" value="${formatNumberInput(payment.amount)}" required />
       </div>
       <div class="field">
         <label>Ngày đến hạn</label>
@@ -1115,6 +1129,7 @@ function openEditPaymentModal(id) {
     showToast("Đã lưu thay đổi")
     render()
   }
+  bindMoneyInput(document.querySelector("#editPaymentForm [name='amount']"))
 }
 
 function deletePayment(id) {
@@ -1289,7 +1304,7 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Số tiền</label>
-        <input name="amount" inputmode="numeric" placeholder="4.000.000" required />
+        <input name="amount" inputmode="numeric" placeholder="4,000,000" required />
       </div>
       <div class="field">
         <label>Ngày đến hạn</label>
@@ -1336,6 +1351,7 @@ function openPaymentModal() {
     showToast("Đã thêm khoản phải trả")
     render()
   }
+  bindMoneyInput(document.querySelector("#paymentForm [name='amount']"))
 }
 
 function openProfileModal() {
@@ -1450,7 +1466,7 @@ function openImportModal() {
       <div id="manualSalaryFields" class="form sub-form">
         <div class="field">
           <label>Số tiền lương</label>
-          <input id="manualAmount" inputmode="numeric" placeholder="22.165.337" />
+          <input id="manualAmount" inputmode="numeric" placeholder="22,165,337" />
         </div>
         <div class="field">
           <label>Ngân hàng</label>
@@ -1487,6 +1503,7 @@ function openImportModal() {
   const manualAmountInput = document.getElementById("manualAmount")
   const manualBankInput = document.getElementById("manualBank")
   const analysisPreview = document.getElementById("analysisPreview")
+  bindMoneyInput(manualAmountInput)
 
   const showParsedPreview = () => {
     analysisPreview.innerHTML = parsed
@@ -1834,7 +1851,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=13").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=14").catch(() => {})
 }
 
 installScrollGuard()
