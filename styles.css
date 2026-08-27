@@ -29,6 +29,9 @@
   --weight-medium: 500;
   --weight-semibold: 600;
   --weight-bold: 700;
+  --button-height: 48px;
+  --button-radius: 14px;
+  --button-pad-x: 16px;
 }
 
 * {
@@ -57,6 +60,16 @@ select {
 button {
   border: 0;
   cursor: pointer;
+  min-height: var(--button-height);
+  border-radius: var(--button-radius);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.15;
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 strong {
@@ -118,20 +131,42 @@ strong {
 }
 
 .shortcuts button,
-.primary {
-  min-height: 48px;
-  border-radius: 16px;
+.primary,
+.pill.green {
+  min-height: var(--button-height);
+  padding: 0 var(--button-pad-x);
+  border: 1px solid transparent;
+  border-radius: var(--button-radius);
   color: white;
   font-weight: var(--weight-semibold);
   background: linear-gradient(135deg, var(--teal), #00a7bd);
-  box-shadow: 0 12px 24px rgba(0, 137, 154, 0.22);
+  box-shadow: 0 10px 22px rgba(0, 137, 154, 0.18);
 }
 
-.ghost {
-  color: var(--teal) !important;
-  border: 1px solid rgba(0, 137, 154, 0.45) !important;
-  background: rgba(255, 255, 255, 0.88) !important;
-  box-shadow: none !important;
+.ghost,
+.pill,
+.link {
+  min-height: var(--button-height);
+  padding: 0 var(--button-pad-x);
+  border: 1px solid rgba(0, 137, 154, 0.38);
+  border-radius: var(--button-radius);
+  color: var(--teal-dark);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: none;
+}
+
+.ghost.red,
+.link.red {
+  color: var(--red);
+  border-color: rgba(255, 48, 79, 0.35);
+  background: rgba(255, 48, 79, 0.06);
+}
+
+.primary:hover,
+.ghost:hover,
+.pill:hover,
+.link:hover {
+  filter: brightness(0.99);
 }
 
 .phone-shell {
@@ -187,6 +222,7 @@ strong {
   display: grid;
   place-items: center;
   width: 44px;
+  min-height: 44px;
   height: 44px;
   border-radius: 22px;
   color: var(--ink);
@@ -539,8 +575,9 @@ strong {
 
 .link {
   color: var(--blue);
+  border-color: transparent;
   background: transparent;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
 }
 
 .card {
@@ -582,7 +619,6 @@ strong {
   background: rgba(239, 248, 244, 0.9);
 }
 
-.pill,
 .status {
   display: inline-flex;
   align-items: center;
@@ -595,16 +631,27 @@ strong {
   text-transform: uppercase;
 }
 
-.pill.green,
 .status.paid {
   color: var(--green);
   background: rgba(22, 163, 74, 0.1);
 }
 
-.pill.orange,
 .status.skip {
   color: var(--orange);
   background: rgba(242, 132, 0, 0.1);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: none;
+}
+
+.pill.orange {
+  color: var(--orange);
+  border-color: rgba(242, 132, 0, 0.35);
+  background: rgba(242, 132, 0, 0.08);
 }
 
 .status.must {
@@ -678,6 +725,7 @@ strong {
 .check {
   display: grid;
   place-items: center;
+  min-height: 28px;
   width: 28px;
   height: 28px;
   border: 2px solid #b7c3d3;
@@ -774,10 +822,10 @@ strong {
 .segment,
 .chip {
   flex: 1;
-  min-height: 44px;
+  min-height: var(--button-height);
   padding: 10px 14px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--button-radius);
   color: var(--muted);
   background: white;
   font-weight: var(--weight-semibold);
@@ -846,7 +894,7 @@ strong {
 }
 
 .stack-actions {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr !important;
 }
 
 .notification-row {
@@ -1111,6 +1159,11 @@ strong {
   gap: 10px;
 }
 
+.form-actions button {
+  width: 100%;
+  min-height: var(--button-height);
+}
+
 .toast {
   position: fixed;
   z-index: 30;
@@ -1227,3 +1280,4 @@ strong {
     background: #0b1422;
   }
 }
+  min-height: 68px;
