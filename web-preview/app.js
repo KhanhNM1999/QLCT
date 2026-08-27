@@ -3,6 +3,8 @@ const STORAGE_KEY = "luongTietKiem.preview.v5"
 const emptyState = {
   activeTab: "dashboard",
   checklistFilter: "month",
+  paymentFilter: "all",
+  paymentSort: "dueDate",
   profile: {
     name: "",
     createdAt: ""
@@ -16,6 +18,8 @@ const emptyState = {
 const sampleState = {
   activeTab: "dashboard",
   checklistFilter: "month",
+  paymentFilter: "all",
+  paymentSort: "dueDate",
   profile: {
     name: "Minh",
     createdAt: "2026-08-26"
@@ -148,6 +152,8 @@ function normalizeState(saved) {
     ...base,
     ...saved,
     profile: { ...base.profile, ...(saved.profile || {}) },
+    paymentFilter: saved.paymentFilter || base.paymentFilter,
+    paymentSort: saved.paymentSort || base.paymentSort,
     payments: Array.isArray(saved.payments) ? saved.payments : [],
     imported: Array.isArray(saved.imported) ? saved.imported : [],
     notifications: Array.isArray(saved.notifications) ? saved.notifications : []
@@ -206,6 +212,44 @@ function finance() {
     availableAfterSavings: availableAfterBills,
     totalOutstandingDebt
   }
+}
+
+function sortPayments(payments) {
+  return [...payments].sort((a, b) => {
+    if (state.paymentSort === "amount") return Number(b.amount || 0) - Number(a.amount || 0)
+    if (state.paymentSort === "status") return Number(a.paid) - Number(b.paid)
+    return String(a.dueDate || "").localeCompare(String(b.dueDate || ""))
+  })
+}
+
+function filteredPayments() {
+  const filtered = state.payments.filter(payment => {
+    if (state.paymentFilter === "must") return payment.priority === "MUST_PAY"
+    if (state.paymentFilter === "skippable") return payment.priority === "SKIPPABLE"
+    if (state.paymentFilter === "installment") return payment.recurrence === "INSTALLMENT"
+    if (state.paymentFilter === "once") return payment.recurrence === "ONCE"
+    if (state.paymentFilter === "paid") return payment.paid || payment.status === "PAID"
+    return true
+  })
+  return sortPayments(filtered)
+}
+
+function checklistPayments() {
+  const today = new Date()
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const end = new Date(start)
+  if (state.checklistFilter === "today") {
+    end.setDate(start.getDate() + 1)
+  } else if (state.checklistFilter === "week") {
+    end.setDate(start.getDate() + 7)
+  } else {
+    end.setMonth(start.getMonth() + 1)
+  }
+
+  return sortPayments(state.payments.filter(payment => {
+    const due = new Date(payment.dueDate || payment.createdAt || new Date())
+    return due >= start && due < end
+  }))
 }
 
 function categoryIcon(category) {
@@ -464,7 +508,7 @@ function paymentRow(payment) {
 
 function checklistRow(payment) {
   return `
-    <div class="plan-row">
+    <div class="plan-row" data-payment-id="${payment.id}">
       <button class="check ${payment.paid ? "done" : ""}" data-action="toggle-paid" data-id="${payment.id}">${payment.paid ? "✓" : ""}</button>
       <div>
         <div class="row-title">${payment.name}</div>
@@ -495,14 +539,24 @@ function progressRow(icon, label, value, total, color) {
 
 function renderPayments() {
   const f = finance()
+  const payments = filteredPayments()
+  const filterLabels = {
+    all: "Tất cả",
+    must: "Đúng hạn",
+    skippable: "Có thể skip",
+    installment: "Trả góp",
+    once: "Một lần",
+    paid: "Đã trả"
+  }
+  const sortLabels = {
+    dueDate: "Sắp đến hạn",
+    amount: "Số tiền cao",
+    status: "Chưa trả trước"
+  }
   return `
     ${header("Khoản phải trả", "")}
     <div class="chips section">
-      <button class="chip active">Tất cả</button>
-      <button class="chip">Đúng hạn</button>
-      <button class="chip">Có thể skip</button>
-      <button class="chip">Trả góp</button>
-      <button class="chip">Một lần</button>
+      ${Object.entries(filterLabels).map(([key, label]) => `<button class="chip ${state.paymentFilter === key ? "active" : ""}" data-payment-filter="${key}">${label}</button>`).join("")}
     </div>
     <section class="hero">
       <div class="hero-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -513,10 +567,10 @@ function renderPayments() {
     </section>
     <section class="section">
       <div class="section-head">
-        <h2>${state.payments.length} khoản phải trả</h2>
-        <button class="link">Sắp đến hạn⌄</button>
+        <h2>${payments.length} khoản phải trả</h2>
+        <button class="link" data-action="cycle-payment-sort">${sortLabels[state.paymentSort]}⌄</button>
       </div>
-      ${state.payments.length ? `<div class="card list">${state.payments.map(paymentRow).join("")}</div>` : emptyCard(
+      ${payments.length ? `<div class="card list">${payments.map(paymentRow).join("")}</div>` : emptyCard(
         iconSvg("receipt"),
         "Chưa có khoản cần trả",
         "Bấm dấu cộng để thêm khoản đầu tiên.",
@@ -529,7 +583,8 @@ function renderPayments() {
 }
 
 function renderChecklist() {
-  const done = state.payments.filter(payment => payment.paid).length
+  const payments = checklistPayments()
+  const done = payments.filter(payment => payment.paid).length
   return `
     ${header("Checklist thanh toán", `Quản lý các khoản phải trả đúng hạn, ${userName()}`)}
     <div class="segmented section">
@@ -539,16 +594,16 @@ function renderChecklist() {
     </div>
     <section class="hero">
       <div class="hero-grid" style="grid-template-columns:repeat(3,1fr)">
-        ${metric("☑", "Tổng checklist", state.payments.length, "khoản")}
+        ${metric("☑", "Tổng checklist", payments.length, "khoản")}
         ${metric("✓", "Đã hoàn thành", done, "khoản")}
-        ${metric("◌", "Sắp đến hạn", state.payments.length - done, "khoản")}
+        ${metric("○", "Sắp đến hạn", payments.length - done, "khoản")}
       </div>
     </section>
     <section class="section">
-      ${state.payments.length ? `<div class="card list">${state.payments.map(checklistRow).join("")}</div>` : emptyCard(
+      ${payments.length ? `<div class="card list">${payments.map(checklistRow).join("")}</div>` : emptyCard(
         iconSvg("check"),
         "Checklist đang trống",
-        "Thêm khoản cần trả để app tự tạo việc cần làm trong tháng.",
+        "Không có khoản nào trong khoảng thời gian đang chọn.",
         "Thêm khoản",
         "open-payment"
       )}
@@ -621,7 +676,7 @@ function renderAnalytics() {
     <section class="section">
       <div class="section-head">
         <h2>Khuyến nghị thông minh</h2>
-        <button class="link">Xem tất cả ›</button>
+        <button class="link" data-action="open-recommendations">Xem tất cả ›</button>
       </div>
       ${state.payments.length || state.salary ? `<div class="chips">
           <div class="card" style="min-width:150px;padding:14px"><strong>Dời khoản có thể skip</strong><p class="muted">Tiết kiệm thêm <span class="orange">${money(f.remainingSkippable)}</span></p></div>
@@ -697,12 +752,11 @@ function analysisLine(icon, label, value, total, color) {
 
 function renderSettings() {
   return `
-    ${header("Cài đặt", "Bảo mật, dữ liệu và import")}
+    ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
       ${settingsRow(iconSvg("settings"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
-      ${settingsRow(iconSvg("receipt"), "Paste thông báo", "Nhập text notification ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
-      ${settingsRow(iconSvg("wallet"), "Đọc từ ảnh chụp màn hình", "Preview mô phỏng OCR on-device", `<button class="link" data-action="open-import">Mở</button>`)}
-      ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "49 ngân hàng Việt Nam + badge local", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
+      ${settingsRow(iconSvg("receipt"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
+      ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "Danh sách ngân hàng để chọn khi nhận diện lương", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
       ${settingsRow(iconSvg("chart"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
       ${settingsRow(iconSvg("wallet"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
       ${settingsRow(iconSvg("calendar"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
@@ -781,6 +835,279 @@ function bindScreenActions() {
   document.querySelectorAll("[data-action='reset-empty']").forEach(button => {
     button.onclick = resetToEmpty
   })
+
+  document.querySelectorAll(".bell").forEach(button => {
+    button.onclick = openNotificationsModal
+  })
+
+  document.querySelectorAll("[data-payment-filter]").forEach(button => {
+    button.onclick = () => {
+      state.paymentFilter = button.dataset.paymentFilter
+      render()
+    }
+  })
+
+  document.querySelectorAll("[data-action='cycle-payment-sort']").forEach(button => {
+    button.onclick = cyclePaymentSort
+  })
+
+  document.querySelectorAll("[data-payment-id]").forEach(row => {
+    row.onclick = event => {
+      if (event.target.closest("button")) return
+      openPaymentDetailModal(row.dataset.paymentId)
+    }
+  })
+
+  document.querySelectorAll("[data-action='open-recommendations']").forEach(button => {
+    button.onclick = openRecommendationsModal
+  })
+}
+
+function cyclePaymentSort() {
+  const order = ["dueDate", "amount", "status"]
+  const index = order.indexOf(state.paymentSort)
+  state.paymentSort = order[(index + 1) % order.length]
+  render()
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function openPaymentDetailModal(id) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+
+  openModal(`
+    <h2>${escapeHtml(payment.name)}</h2>
+    <div class="form">
+      <div class="detail-grid">
+        <div class="detail-box"><span>Số tiền</span><strong>${money(payment.amount)}</strong></div>
+        <div class="detail-box"><span>Ngày đến hạn</span><strong>${formatDate(payment.dueDate)}</strong></div>
+        <div class="detail-box"><span>Loại</span><strong>${payment.recurrence === "INSTALLMENT" ? "Trả góp" : payment.recurrence === "MONTHLY" ? "Theo tháng" : "Một lần"}</strong></div>
+        <div class="detail-box"><span>Trạng thái</span><strong>${payment.paid ? "Đã trả" : "Chưa trả"}</strong></div>
+      </div>
+      ${payment.recurrence === "INSTALLMENT" ? `<div class="bank-line">Đã trả ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0} kỳ · Còn nợ ${money(payment.remainingPrincipal || 0)}</div>` : ""}
+      <div class="form-actions stack-actions">
+        <button type="button" class="primary" data-action="detail-toggle-paid">${payment.paid ? "Đánh dấu chưa trả" : "Đánh dấu đã trả"}</button>
+        <button type="button" class="ghost" data-action="detail-edit-payment">Sửa khoản</button>
+        <button type="button" class="ghost red" data-action="detail-delete-payment">Xóa khoản</button>
+        <button type="button" class="ghost" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelector("[data-action='detail-toggle-paid']").onclick = () => {
+    closeModal()
+    togglePaid(id)
+  }
+  document.querySelector("[data-action='detail-edit-payment']").onclick = () => openEditPaymentModal(id)
+  document.querySelector("[data-action='detail-delete-payment']").onclick = () => deletePayment(id)
+}
+
+function openEditPaymentModal(id) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+
+  openModal(`
+    <h2>Sửa khoản phải trả</h2>
+    <form id="editPaymentForm" class="form">
+      <div class="field">
+        <label>Tên khoản</label>
+        <input name="name" value="${escapeHtml(payment.name)}" required />
+      </div>
+      <div class="field">
+        <label>Số tiền</label>
+        <input name="amount" inputmode="numeric" value="${money(payment.amount).replace("đ", "")}" required />
+      </div>
+      <div class="field">
+        <label>Ngày đến hạn</label>
+        <input name="dueDate" type="date" value="${payment.dueDate || ""}" />
+      </div>
+      <div class="field">
+        <label>Loại lặp lại</label>
+        <select name="recurrence">
+          <option value="ONCE" ${payment.recurrence === "ONCE" ? "selected" : ""}>Một lần</option>
+          <option value="MONTHLY" ${payment.recurrence === "MONTHLY" ? "selected" : ""}>Theo tháng</option>
+          <option value="INSTALLMENT" ${payment.recurrence === "INSTALLMENT" ? "selected" : ""}>Trả góp</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Trạng thái khoản</label>
+        <select name="priority">
+          <option value="MUST_PAY" ${payment.priority === "MUST_PAY" ? "selected" : ""}>Cần phải trả đúng kỳ hạn</option>
+          <option value="SKIPPABLE" ${payment.priority === "SKIPPABLE" ? "selected" : ""}>Có thể skip</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-close>Hủy</button>
+        <button class="primary">Lưu thay đổi</button>
+      </div>
+    </form>
+  `)
+
+  document.getElementById("editPaymentForm").onsubmit = event => {
+    event.preventDefault()
+    const form = new FormData(event.target)
+    payment.name = String(form.get("name") || "").trim()
+    payment.amount = parseMoney(form.get("amount"))
+    payment.dueDate = form.get("dueDate")
+    payment.recurrence = form.get("recurrence")
+    payment.priority = form.get("priority")
+    payment.category = payment.recurrence === "INSTALLMENT" ? "laptop" : payment.category || "other"
+    if (!payment.paid) payment.status = payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"
+    closeModal()
+    showToast("Đã lưu thay đổi")
+    render()
+  }
+}
+
+function deletePayment(id) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+  if (!confirm(`Xóa khoản "${payment.name}"?`)) return
+  state.payments = state.payments.filter(item => item.id !== id)
+  closeModal()
+  showToast("Đã xóa khoản")
+  render()
+}
+
+function openNotificationsModal() {
+  const upcoming = sortPayments(state.payments.filter(payment => !payment.paid)).slice(0, 8)
+  const customNotifications = state.notifications.map(item => ({
+    id: item.id,
+    title: item.title || "Thông báo",
+    desc: item.desc || item.message || "",
+    read: Boolean(item.read)
+  }))
+  const generated = upcoming.map(payment => ({
+    id: payment.id,
+    title: payment.name,
+    desc: `${money(payment.amount)} · hạn ${formatDate(payment.dueDate)}`,
+    read: false
+  }))
+  const items = [...customNotifications, ...generated]
+
+  openModal(`
+    <h2>Thông báo</h2>
+    <div class="form">
+      ${items.length ? `<div class="card list">${items.map(item => `
+        <button class="notification-row" type="button" data-notification-payment="${item.id}">
+          <span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <span class="row-sub">${escapeHtml(item.desc)}</span>
+          </span>
+          <span class="status ${item.read ? "neutral" : "must"}">${item.read ? "Đã đọc" : "Mới"}</span>
+        </button>
+      `).join("")}</div>` : `<div class="card empty-card"><div class="list-icon blue">i</div><div><strong>Không có thông báo</strong><div class="desc">Khi có khoản chưa trả hoặc dữ liệu mới, thông báo sẽ hiện ở đây.</div></div></div>`}
+      <div class="form-actions">
+        <button type="button" class="ghost" data-action="mark-notifications-read">Đánh dấu đã đọc</button>
+        <button type="button" class="ghost red" data-action="clear-notifications">Xóa thông báo</button>
+        <button type="button" class="primary" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelectorAll("[data-notification-payment]").forEach(button => {
+    button.onclick = () => {
+      const payment = state.payments.find(item => item.id === button.dataset.notificationPayment)
+      if (payment) openPaymentDetailModal(payment.id)
+    }
+  })
+  document.querySelector("[data-action='mark-notifications-read']").onclick = () => {
+    state.notifications = state.notifications.map(item => ({ ...item, read: true }))
+    showToast("Đã đánh dấu đã đọc")
+    closeModal()
+    render()
+  }
+  document.querySelector("[data-action='clear-notifications']").onclick = () => {
+    state.notifications = []
+    showToast("Đã xóa thông báo")
+    closeModal()
+    render()
+  }
+}
+
+function openRecommendationsModal() {
+  const f = finance()
+  const recommendations = []
+  if (f.remainingSkippable > 0) recommendations.push(["Dời khoản có thể skip", `Bạn có thể giữ lại ${money(f.remainingSkippable)} nếu chưa cần thanh toán ngay.`])
+  if (f.targetSavings > 0) recommendations.push(["Khóa khoản tiết kiệm", `Sau khi trừ khoản phải trả, mức còn lại dự kiến là ${money(f.targetSavings)}.`])
+  if (f.totalOutstandingDebt > 0) recommendations.push(["Ưu tiên khoản nợ lớn", "Xem lại các khoản trả góp/nợ để giảm áp lực các tháng sau."])
+
+  openModal(`
+    <h2>Khuyến nghị thông minh</h2>
+    <div class="form">
+      ${recommendations.length ? `<div class="card list">${recommendations.map(item => `
+        <div class="settings-row">
+          <div class="list-icon green">${iconSvg("chart")}</div>
+          <div><strong>${item[0]}</strong><div class="row-sub">${item[1]}</div></div>
+        </div>
+      `).join("")}</div>` : `<div class="card empty-card"><div class="list-icon blue">${iconSvg("chart")}</div><div><strong>Chưa đủ dữ liệu</strong><div class="desc">Nhập lương và khoản cần trả để app đưa khuyến nghị.</div></div></div>`}
+      <button type="button" class="primary" data-close>Đóng</button>
+    </div>
+  `)
+}
+
+function openBankInfoModal(id) {
+  const bank = findBankByID(id)
+  if (!bank) return
+
+  openModal(`
+    <h2>${escapeHtml(bank.displayName)}</h2>
+    <div class="form">
+      <div class="bank-info-head">
+        ${bankLogo(bank)}
+        <div>
+          <strong>${escapeHtml(bank.shortName)}</strong>
+          <div class="row-sub">${escapeHtml(bank.category || "Ngân hàng")}</div>
+        </div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-box"><span>Tên hiển thị</span><strong>${escapeHtml(bank.displayName)}</strong></div>
+        <div class="detail-box"><span>Viết tắt</span><strong>${escapeHtml(bank.shortName)}</strong></div>
+      </div>
+      <div class="bank-line">
+        Alias nhận diện: ${(bank.aliases || []).map(escapeHtml).join(", ") || "Chưa có"}
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-action="choose-bank-for-salary">Dùng để nhập lương</button>
+        <button type="button" class="primary" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelector("[data-action='choose-bank-for-salary']").onclick = () => {
+    closeModal()
+    openImportModal()
+    showToast(`Chọn ${bank.shortName} trong danh sách ngân hàng`)
+  }
+}
+
+function openCustomBankInfoModal() {
+  openModal(`
+    <h2>Ngân hàng khác</h2>
+    <div class="form">
+      <div class="card empty-card">
+        <div class="list-icon blue">${iconSvg("bank")}</div>
+        <div>
+          <strong>Dùng tên ngân hàng trong tin nhắn</strong>
+          <div class="desc">Nếu ngân hàng chưa có logo, bạn vẫn có thể nhập lương thủ công. Với tin nhắn ngân hàng, chọn ngân hàng gần đúng trong danh sách hoặc nhập tay số tiền.</div>
+        </div>
+      </div>
+      <button type="button" class="primary" data-action="open-import-from-custom-bank">Nhập lương</button>
+      <button type="button" class="ghost" data-close>Đóng</button>
+    </div>
+  `)
+
+  document.querySelector("[data-action='open-import-from-custom-bank']").onclick = () => {
+    closeModal()
+    openImportModal()
+  }
 }
 
 function togglePaid(id) {
@@ -918,7 +1245,7 @@ function openBankDirectoryModal() {
     })
 
     const bankRows = banks.map(bank => `
-      <button class="bank-option" type="button">
+      <button class="bank-option" type="button" data-bank-directory-id="${bank.id}">
         ${bankLogo(bank, "small")}
         <span>
           <strong>${bank.displayName}</strong>
@@ -930,7 +1257,7 @@ function openBankDirectoryModal() {
 
     const otherBank = !query || normalizeBankText("Ngân hàng khác custom other").includes(query)
       ? `
-        <button class="bank-option custom-bank" type="button">
+        <button class="bank-option custom-bank" type="button" data-action="custom-bank-info">
           ${bankLogo(null, "small")}
           <span>
             <strong>Ngân hàng khác</strong>
@@ -942,6 +1269,12 @@ function openBankDirectoryModal() {
       : ""
 
     list.innerHTML = bankRows + otherBank
+    list.querySelectorAll("[data-bank-directory-id]").forEach(button => {
+      button.onclick = () => openBankInfoModal(button.dataset.bankDirectoryId)
+    })
+    list.querySelectorAll("[data-action='custom-bank-info']").forEach(button => {
+      button.onclick = openCustomBankInfoModal
+    })
   }
 
   input.oninput = renderBanks
@@ -964,7 +1297,7 @@ function openImportModal() {
       </div>
       <div class="field hidden" id="bankTextField">
         <label>Nhập nội dung giao dịch</label>
-        <textarea id="bankText" placeholder="Dán notification TPBank, HSBC hoặc nội dung OCR ở đây"></textarea>
+        <textarea id="bankText" placeholder="Dán nội dung tin nhắn ngân hàng ở đây"></textarea>
       </div>
       <div class="field" id="manualAmountField">
         <label>Số tiền lương</label>
@@ -1359,7 +1692,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=7").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=8").catch(() => {})
 }
 
 render()
