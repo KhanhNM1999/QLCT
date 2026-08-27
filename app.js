@@ -1206,7 +1206,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=5").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=6").catch(() => {})
 }
 
 render()
