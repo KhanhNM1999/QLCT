@@ -642,20 +642,22 @@ function metric(icon, label, value, sub) {
 }
 
 function paymentRow(payment) {
-  const installment = payment.recurrence === "INSTALLMENT"
-    ? `<div class="row-sub">Kỳ ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0}</div>`
-    : `<div class="row-sub">${payment.recurrence === "ONCE" ? "Một lần" : monthLabel(monthKey(payment.dueDate))}</div>`
+  const meta = payment.recurrence === "INSTALLMENT"
+    ? `Kỳ ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0}`
+    : payment.recurrence === "ONCE" ? "Một lần" : monthLabel(monthKey(payment.dueDate))
 
   return `
     <div class="row-item" data-payment-id="${payment.id}">
       <div class="list-icon ${categoryTone(payment.category)}">${categoryIcon(payment.category)}</div>
-      <div>
-        <div class="row-title">${payment.name}</div>
-        ${installment}
-      </div>
-      <div>
-        <div class="row-amount">${money(payment.amount)}</div>
-        <div class="row-date">${formatDate(payment.dueDate)}</div>
+      <div class="row-main">
+        <div class="row-line row-line-top">
+          <div class="row-title">${payment.name}</div>
+          <div class="row-amount">${money(payment.amount)}</div>
+        </div>
+        <div class="row-line row-line-bottom">
+          <div class="row-date">Hạn ${formatDate(payment.dueDate)}</div>
+          <div class="row-sub">${meta}</div>
+        </div>
         ${statusHtml(payment)}
       </div>
       <div class="chevron">›</div>
@@ -664,16 +666,22 @@ function paymentRow(payment) {
 }
 
 function checklistRow(payment) {
+  const meta = payment.recurrence === "INSTALLMENT"
+    ? `Còn ${(payment.installmentCount || 0) - (payment.paidInstallmentCount || 0)}/${payment.installmentCount || 0} kỳ`
+    : payment.paid ? "Đã thanh toán" : "Cần thanh toán"
+
   return `
     <div class="plan-row" data-payment-id="${payment.id}">
       <button class="check ${payment.paid ? "done" : ""}" data-action="toggle-paid" data-id="${payment.id}">${payment.paid ? "✓" : ""}</button>
-      <div>
-        <div class="row-title">${payment.name}</div>
-        <div class="row-sub">${payment.recurrence === "INSTALLMENT" ? `Còn ${(payment.installmentCount || 0) - (payment.paidInstallmentCount || 0)}/${payment.installmentCount || 0} kỳ` : "Tự tạo từ khoản phải trả"}</div>
-      </div>
-      <div>
-        <div class="row-amount">${money(payment.amount)}</div>
-        <div class="row-date ${payment.priority === "SKIPPABLE" ? "orange" : ""}">${formatDate(payment.dueDate)}</div>
+      <div class="row-main">
+        <div class="row-line row-line-top">
+          <div class="row-title">${payment.name}</div>
+          <div class="row-amount">${money(payment.amount)}</div>
+        </div>
+        <div class="row-line row-line-bottom">
+          <div class="row-date ${payment.priority === "SKIPPABLE" ? "orange" : ""}">Hạn ${formatDate(payment.dueDate)}</div>
+          <div class="row-sub">${meta}</div>
+        </div>
       </div>
       <div class="chevron">›</div>
     </div>
@@ -856,11 +864,16 @@ function historyEventRow(event) {
   return `
     <div class="timeline-row">
       <div class="list-icon ${event.type === "salary" ? "green" : "blue"}">${event.icon}</div>
-      <div>
-        <strong>${event.title}</strong>
-        <div class="row-sub">${formatDate(event.date)} · ${event.note}</div>
+      <div class="row-main">
+        <div class="row-line row-line-top">
+          <strong class="row-title">${event.title}</strong>
+          <strong class="${event.type === "salary" ? "green" : "red"} row-amount">${money(event.amount)}</strong>
+        </div>
+        <div class="row-line row-line-bottom">
+          <div class="row-date">${formatDate(event.date)}</div>
+          <div class="row-sub">${event.note}</div>
+        </div>
       </div>
-      <strong class="${event.type === "salary" ? "green" : "red"}">${money(event.amount)}</strong>
     </div>
   `
 }
@@ -1191,12 +1204,16 @@ function openNotificationsModal() {
     id: item.id,
     title: item.title || "Thông báo",
     desc: item.desc || item.message || "",
+    amount: Number(item.amount || 0),
+    dueDate: eventDate(item.date || item.createdAt || item.savedAt),
     read: Boolean(item.read)
   }))
   const generated = upcoming.map(payment => ({
     id: payment.id,
     title: payment.name,
-    desc: `${money(payment.amount)} · hạn ${formatDate(payment.dueDate)}`,
+    desc: "Khoản cần trả",
+    amount: Number(payment.amount || 0),
+    dueDate: payment.dueDate,
     read: false
   }))
   const items = [...customNotifications, ...generated]
@@ -1206,17 +1223,22 @@ function openNotificationsModal() {
     <div class="form">
       ${items.length ? `<div class="card list">${items.map(item => `
         <button class="notification-row" type="button" data-notification-payment="${item.id}">
-          <span>
-            <strong>${escapeHtml(item.title)}</strong>
-            <span class="row-sub">${escapeHtml(item.desc)}</span>
+          <span class="notification-main">
+            <span class="row-line row-line-top">
+              <strong class="row-title">${escapeHtml(item.title)}</strong>
+              ${item.amount ? `<strong class="row-amount">${money(item.amount)}</strong>` : ""}
+            </span>
+            <span class="row-line row-line-bottom">
+              <span class="row-date">${item.dueDate ? `Hạn ${formatDate(item.dueDate)}` : escapeHtml(item.desc)}</span>
+            </span>
           </span>
           <span class="status ${item.read ? "neutral" : "must"}">${item.read ? "Đã đọc" : "Mới"}</span>
         </button>
       `).join("")}</div>` : `<div class="card empty-card"><div class="list-icon blue">i</div><div><strong>Không có thông báo</strong><div class="desc">Khi có khoản chưa trả hoặc dữ liệu mới, thông báo sẽ hiện ở đây.</div></div></div>`}
-      <div class="form-actions">
+      <div class="form-actions modal-actions">
         <button type="button" class="ghost" data-action="mark-notifications-read">Đánh dấu đã đọc</button>
         <button type="button" class="ghost red" data-action="clear-notifications">Xóa thông báo</button>
-        <button type="button" class="primary" data-close>Đóng</button>
+        <button type="button" class="primary span-2" data-close>Đóng</button>
       </div>
     </div>
   `)
@@ -1907,7 +1929,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=15").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=16").catch(() => {})
 }
 
 installScrollGuard()
