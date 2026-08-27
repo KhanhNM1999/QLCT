@@ -133,6 +133,7 @@ const sampleState = {
 }
 
 let state = loadState()
+let touchStartY = 0
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -165,6 +166,32 @@ function normalizeState(saved) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+function installScrollGuard() {
+  document.addEventListener("touchstart", event => {
+    touchStartY = event.touches[0]?.clientY || 0
+  }, { passive: true })
+
+  document.addEventListener("touchmove", event => {
+    const scroller = event.target.closest(".screen, .modal, .salary-bank-list, .bank-grid")
+    if (!scroller) {
+      event.preventDefault()
+      return
+    }
+
+    const currentY = event.touches[0]?.clientY || 0
+    const deltaY = currentY - touchStartY
+    const canScroll = scroller.scrollHeight > scroller.clientHeight
+    if (!canScroll) {
+      event.preventDefault()
+      return
+    }
+
+    const atTop = scroller.scrollTop <= 0
+    const atBottom = Math.ceil(scroller.scrollTop + scroller.clientHeight) >= scroller.scrollHeight
+    if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) event.preventDefault()
+  }, { passive: false })
 }
 
 function money(value) {
@@ -1818,7 +1845,8 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=11").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=12").catch(() => {})
 }
 
+installScrollGuard()
 render()
