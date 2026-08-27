@@ -1,4 +1,4 @@
-const STORAGE_KEY = "luongTietKiem.preview.v4"
+const STORAGE_KEY = "luongTietKiem.preview.v5"
 
 const emptyState = {
   activeTab: "dashboard",
@@ -8,7 +8,6 @@ const emptyState = {
     createdAt: ""
   },
   salary: null,
-  savingsGoal: 0,
   faceId: false,
   payments: [],
   imported: [],
@@ -30,7 +29,6 @@ const sampleState = {
     description: "Payslip FSOFT HO CHUYEN TIEN LUONG THANG 8",
     confidence: "HIGH"
   },
-  savingsGoal: 6000000,
   faceId: false,
   payments: [
     {
@@ -192,7 +190,7 @@ function finance() {
     .reduce((sum, payment) => sum + dueAmount(payment), 0)
   const paidThisMonth = state.payments.reduce((sum, payment) => sum + (payment.paid ? Number(payment.amount || 0) : 0), 0)
   const availableAfterMandatory = monthlyIncome - remainingMandatory
-  const availableAfterSavings = availableAfterMandatory - Number(state.savingsGoal || 0)
+  const availableAfterBills = monthlyIncome - remainingMandatory - remainingSkippable
   const totalOutstandingDebt = state.payments.reduce((sum, payment) => {
     if (payment.recurrence === "INSTALLMENT") return sum + Number(payment.remainingPrincipal || 0)
     return sum + dueAmount(payment)
@@ -206,8 +204,8 @@ function finance() {
     remainingMandatory,
     remainingSkippable,
     availableAfterMandatory,
-    targetSavings: Number(state.savingsGoal || 0),
-    availableAfterSavings,
+    targetSavings: Math.max(0, availableAfterBills),
+    availableAfterSavings: availableAfterBills,
     totalOutstandingDebt
   }
 }
@@ -308,10 +306,6 @@ function renderOnboarding() {
           <label>Tên của bạn</label>
           <input name="name" autocomplete="given-name" placeholder="Ví dụ: Khánh" required />
         </div>
-        <div class="field">
-          <label>Mục tiêu tiết kiệm mỗi tháng</label>
-          <input name="savingsGoal" inputmode="numeric" placeholder="Ví dụ: 6.000.000" />
-        </div>
         <button class="primary">Bắt đầu dùng app</button>
       </form>
     </section>
@@ -332,7 +326,6 @@ function bindOnboardingActions() {
       name,
       createdAt: new Date().toISOString()
     }
-    state.savingsGoal = parseMoney(form.get("savingsGoal"))
     state.activeTab = "dashboard"
     showToast("Đã tạo app trắng")
     render()
@@ -342,7 +335,7 @@ function bindOnboardingActions() {
 function renderDashboard() {
   const f = finance()
   const heroDue = f.remainingMandatory
-  const heroAvailable = f.monthlyIncome - heroDue - f.targetSavings
+  const heroAvailable = f.availableAfterSavings
   const nextPayments = state.payments.slice(0, 4)
   const checklist = state.payments.slice(0, 3)
 
@@ -389,7 +382,7 @@ function renderDashboard() {
       <div class="card">
         ${progressRow(iconSvg("card"), "Tổng nợ", f.totalOutstandingDebt, 15000000, "var(--purple)")}
         ${progressRow(iconSvg("check"), "Đã thanh toán", f.paidThisMonth, f.mandatoryDue + f.skippableDue, "var(--green)")}
-        ${progressRow(iconSvg("piggy"), "Mục tiêu tiết kiệm", f.targetSavings, 8000000, "var(--blue)")}
+        ${progressRow(iconSvg("piggy"), "Tiết kiệm dự kiến", f.targetSavings, f.monthlyIncome, "var(--blue)")}
       </div>
     </section>
 
@@ -817,10 +810,6 @@ function openProfileModal() {
         <label>Tên của bạn</label>
         <input name="name" value="${userName()}" required />
       </div>
-      <div class="field">
-        <label>Mục tiêu tiết kiệm mỗi tháng</label>
-        <input name="savingsGoal" inputmode="numeric" value="${state.savingsGoal ? new Intl.NumberFormat("vi-VN").format(state.savingsGoal) : ""}" placeholder="Ví dụ: 6.000.000" />
-      </div>
       <div class="form-actions">
         <button type="button" class="ghost" data-close>Đóng</button>
         <button class="primary">Lưu hồ sơ</button>
@@ -840,7 +829,6 @@ function openProfileModal() {
       ...(state.profile || {}),
       name
     }
-    state.savingsGoal = parseMoney(form.get("savingsGoal"))
     closeModal()
     showToast("Đã lưu hồ sơ")
     render()
