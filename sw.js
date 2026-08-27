@@ -1,10 +1,10 @@
-const CACHE_NAME = "qlct-shell-v6"
+const CACHE_NAME = "qlct-shell-v7"
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=6",
-  "./bank-directory.js?v=6",
-  "./app.js?v=6",
+  "./styles.css?v=7",
+  "./bank-directory.js?v=7",
+  "./app.js?v=7",
   "./manifest.webmanifest",
   "./assets/app-icon-180.png",
   "./assets/app-icon-512.png"
