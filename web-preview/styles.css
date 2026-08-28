@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --ink: #071d34;
   --muted: #64728a;
   --line: #dfe7f1;
@@ -288,8 +289,22 @@ strong {
 }
 
 .month-arrow {
-  font-size: var(--icon-md);
-  font-weight: var(--weight-semibold);
+  display: grid;
+  place-items: center;
+}
+
+.month-arrow svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.month-prev svg {
+  transform: rotate(180deg);
 }
 
 .month-current {
@@ -416,7 +431,10 @@ strong {
 .list-icon svg,
 .tab-icon svg,
 .bell svg,
-.check svg {
+.check svg,
+.chevron svg,
+.icon-link svg,
+.fab svg {
   width: 23px;
   height: 23px;
   fill: none;
@@ -779,8 +797,15 @@ strong {
 }
 
 .chevron {
+  display: grid;
+  place-items: center;
   color: #8190a3;
-  font-size: var(--icon-md);
+}
+
+.chevron svg,
+.icon-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 .plan-row {
@@ -923,6 +948,19 @@ strong {
   background: linear-gradient(145deg, var(--teal), #00748c);
   box-shadow: 0 16px 30px rgba(0, 117, 138, 0.26);
   font-size: var(--icon-fab);
+}
+
+.fab svg {
+  width: 34px;
+  height: 34px;
+  stroke-width: 2.2;
+}
+
+.icon-link {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
 }
 
 .settings-row {
@@ -1361,38 +1399,5 @@ strong {
 
   .history-row {
     grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #eaf2fb;
-    --muted: #9eacc0;
-    --line: #243246;
-    --bg: #07111f;
-    --card: rgba(15, 25, 39, 0.92);
-  }
-
-  body {
-    background: #07111f;
-  }
-
-  .phone,
-  .modal {
-    background: #0b1422;
-  }
-
-  .tabbar,
-  .segment,
-  .chip,
-  .field input,
-  .field textarea,
-  .field select {
-    background: rgba(11, 20, 34, 0.92);
-    color: var(--ink);
-  }
-
-  .donut-inner {
-    background: #0b1422;
   }
 }
