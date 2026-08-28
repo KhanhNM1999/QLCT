@@ -518,6 +518,7 @@ function render() {
   saveState()
   const isOnboarding = !state.profile?.name
   document.body.classList.toggle("is-onboarding", isOnboarding)
+  renderTabIcons()
   document.querySelectorAll(".tab").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.tab === state.activeTab)
   })
@@ -538,6 +539,20 @@ function render() {
 
   document.getElementById("app").innerHTML = routes[state.activeTab]()
   bindScreenActions()
+}
+
+function renderTabIcons() {
+  const icons = {
+    dashboard: "home",
+    payments: "receipt",
+    checklist: "check",
+    analytics: "chart",
+    settings: "settings"
+  }
+  document.querySelectorAll(".tab").forEach(tab => {
+    const icon = tab.querySelector(".tab-icon")
+    if (icon) icon.innerHTML = iconSvg(icons[tab.dataset.tab] || "circle")
+  })
 }
 
 function greeting() {
@@ -563,7 +578,7 @@ function header(title, subtitle = `${greeting()}, ${userName()}`) {
         <h1 class="title">${title}</h1>
         <p class="subtitle">${subtitle}</p>
       </div>
-      <button class="bell ${count ? "has-count" : ""}" aria-label="Thông báo" data-count="${count}">♢</button>
+      <button class="bell ${count ? "has-count" : ""}" aria-label="Thông báo" data-count="${count}">${iconSvg("bell")}</button>
     </div>
   `
 }
@@ -649,7 +664,7 @@ function renderDashboard() {
         ${metric(iconSvg("wallet"), "Lương tháng này", money(f.monthlyIncome), f.monthSalary ? "Đã nhập" : "Chưa có")}
         ${metric(iconSvg("receipt"), "Phải trả bắt buộc", money(heroDue), pct(heroDue))}
         ${metric(iconSvg("piggy"), "Có thể tiết kiệm", money(f.targetSavings), pct(f.targetSavings))}
-        ${metric(iconSvg("wallet"), "Còn lại sau thanh toán", money(heroAvailable), pct(heroAvailable))}
+        ${metric(iconSvg("coin"), "Còn lại sau thanh toán", money(heroAvailable), pct(heroAvailable))}
       </div>
     </section>
 
@@ -777,7 +792,7 @@ function checklistRow(payment) {
 
   return `
     <div class="plan-row" data-payment-id="${payment.id}">
-      <button class="check ${payment.paid ? "done" : ""}" data-action="toggle-paid" data-id="${payment.id}">${payment.paid ? "✓" : ""}</button>
+      <button class="check ${payment.paid ? "done" : ""}" data-action="toggle-paid" data-id="${payment.id}">${payment.paid ? iconSvg("check") : ""}</button>
       <div class="row-main">
         <div class="row-line row-line-top">
           <div class="row-title">${payment.name}</div>
@@ -831,9 +846,9 @@ function renderPayments() {
     </div>
     <section class="hero">
       <div class="hero-grid" style="grid-template-columns:repeat(3,1fr)">
-        ${metric("▰", "Tổng phải trả tháng này", money(f.mandatoryDue + f.skippableDue), "")}
-        ${metric("✓", "Đã thanh toán", money(f.paidThisMonth), pct(f.paidThisMonth, f.mandatoryDue + f.skippableDue))}
-        ${metric("▣", "Còn lại", money(f.remainingMandatory + f.remainingSkippable), pct(f.remainingMandatory + f.remainingSkippable, f.mandatoryDue + f.skippableDue))}
+        ${metric(iconSvg("receipt"), "Tổng phải trả tháng này", money(f.mandatoryDue + f.skippableDue), "")}
+        ${metric(iconSvg("check"), "Đã thanh toán", money(f.paidThisMonth), pct(f.paidThisMonth, f.mandatoryDue + f.skippableDue))}
+        ${metric(iconSvg("coin"), "Còn lại", money(f.remainingMandatory + f.remainingSkippable), pct(f.remainingMandatory + f.remainingSkippable, f.mandatoryDue + f.skippableDue))}
       </div>
     </section>
     <section class="section">
@@ -866,9 +881,9 @@ function renderChecklist() {
     </div>
     <section class="hero">
       <div class="hero-grid" style="grid-template-columns:repeat(3,1fr)">
-        ${metric("☑", "Tổng checklist", payments.length, "khoản")}
-        ${metric("✓", "Đã hoàn thành", done, "khoản")}
-        ${metric("○", "Sắp đến hạn", payments.length - done, "khoản")}
+        ${metric(iconSvg("list"), "Tổng checklist", payments.length, "khoản")}
+        ${metric(iconSvg("check"), "Đã hoàn thành", done, "khoản")}
+        ${metric(iconSvg("clock"), "Sắp đến hạn", payments.length - done, "khoản")}
       </div>
     </section>
     <section class="section">
@@ -881,7 +896,7 @@ function renderChecklist() {
       )}
     </section>
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
-      <div class="list-icon blue">i</div>
+      <div class="list-icon blue">${iconSvg("info")}</div>
       <div>
         <strong>Tự động xử lý tháng sau</strong>
         <div class="desc">Khoản một lần đã hoàn thành sẽ tự ẩn ở tháng sau. Khoản trả góp giảm số kỳ và tổng nợ còn lại.</div>
@@ -913,10 +928,10 @@ function renderAnalytics() {
       </div>
     </section>
     <section class="section card">
-      ${analysisLine("▰", "Lương nhận", f.monthlyIncome, 100, "var(--green)")}
+      ${analysisLine(iconSvg("wallet"), "Lương nhận", f.monthlyIncome, 100, "var(--green)")}
       ${analysisLine("♦", "Khoản phải trả bắt buộc", f.remainingMandatory, f.monthlyIncome, "var(--red)")}
       ${analysisLine("⊖", "Khoản có thể skip", f.remainingSkippable, f.monthlyIncome, "var(--orange)")}
-      ${analysisLine("▣", "Khả dụng sau kế hoạch", f.availableAfterSavings, f.monthlyIncome, "var(--blue)")}
+      ${analysisLine(iconSvg("coin"), "Khả dụng sau kế hoạch", f.availableAfterSavings, f.monthlyIncome, "var(--blue)")}
       ${analysisLine("♧", "Tiết kiệm dự kiến", f.targetSavings, f.monthlyIncome, "var(--green)")}
     </section>
     <section class="section">
@@ -1041,19 +1056,19 @@ function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
-      ${settingsRow(iconSvg("wallet"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
-      ${settingsRow(iconSvg("chart"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
-      ${settingsRow(iconSvg("wallet"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
-      ${settingsRow(iconSvg("settings"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
-      ${settingsRow(iconSvg("receipt"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
+      ${settingsRow(iconSvg("shield"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
+      ${settingsRow(iconSvg("key"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
+      ${settingsRow(iconSvg("upload"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
+      ${settingsRow(iconSvg("user"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
+      ${settingsRow(iconSvg("wallet"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "Danh sách ngân hàng để chọn khi nhận diện lương", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
-      ${settingsRow(iconSvg("chart"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
-      ${settingsRow(iconSvg("wallet"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
-      ${settingsRow(iconSvg("calendar"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
-      ${settingsRow(iconSvg("settings"), "Đưa app về trắng", "Xóa dữ liệu trên máy này và chạy lại onboarding", `<button class="link red" data-action="reset-empty">Reset</button>`)}
+      ${settingsRow(iconSvg("download"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
+      ${settingsRow(iconSvg("upload"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
+      ${settingsRow(iconSvg("refresh"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
+      ${settingsRow(iconSvg("trash"), "Đưa app về trắng", "Xóa dữ liệu trên máy này và chạy lại onboarding", `<button class="link red" data-action="reset-empty">Reset</button>`)}
     </section>
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
-      <div class="list-icon blue">i</div>
+      <div class="list-icon blue">${iconSvg("info")}</div>
       <div>
         <strong>Dữ liệu nằm trên máy bạn</strong>
         <div class="desc">App web/PWA lưu dữ liệu trên thiết bị đang dùng. Dùng Export JSON định kỳ để giữ bản sao và Import lại khi đổi máy.</div>
@@ -1364,7 +1379,7 @@ function openNotificationsModal() {
           </span>
           <span class="status ${item.read ? "neutral" : "must"}">${item.read ? "Đã đọc" : "Mới"}</span>
         </button>
-      `).join("")}</div>` : `<div class="card empty-card"><div class="list-icon blue">i</div><div><strong>Không có thông báo</strong><div class="desc">Khi có khoản chưa trả hoặc dữ liệu mới, thông báo sẽ hiện ở đây.</div></div></div>`}
+      `).join("")}</div>` : `<div class="card empty-card"><div class="list-icon blue">${iconSvg("info")}</div><div><strong>Không có thông báo</strong><div class="desc">Khi có khoản chưa trả hoặc dữ liệu mới, thông báo sẽ hiện ở đây.</div></div></div>`}
       <div class="form-actions modal-actions">
         <button type="button" class="ghost" data-action="mark-notifications-read">Đánh dấu đã đọc</button>
         <button type="button" class="ghost red" data-action="clear-notifications">Xóa thông báo</button>
@@ -2192,7 +2207,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=22").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=23").catch(() => {})
 }
 
 installScrollGuard()
