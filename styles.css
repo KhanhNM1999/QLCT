@@ -413,7 +413,10 @@ strong {
 
 .metric-icon svg,
 .tile-icon svg,
-.list-icon svg {
+.list-icon svg,
+.tab-icon svg,
+.bell svg,
+.check svg {
   width: 23px;
   height: 23px;
   fill: none;
@@ -475,6 +478,19 @@ strong {
 .bank-logo.small span {
   max-width: 34px;
   font-size: var(--text-xs);
+}
+
+.salary-card .list-icon,
+.empty-card .list-icon,
+.info-card .list-icon,
+.row-item .list-icon,
+.plan-row .list-icon,
+.progress-row .list-icon,
+.timeline-row .list-icon,
+.settings-row .list-icon,
+.bank-info-head .bank-logo,
+.salary-bank-choice .bank-logo {
+  margin: 0;
 }
 
 .bank-grid {
@@ -789,6 +805,11 @@ strong {
   background: var(--green);
 }
 
+.check svg {
+  width: 18px;
+  height: 18px;
+}
+
 .progress-row {
   display: grid;
   grid-template-columns: 54px 1fr 70px;
@@ -911,6 +932,10 @@ strong {
   align-items: center;
   padding: 14px;
   border-bottom: 1px solid var(--line);
+}
+
+.settings-row .list-icon {
+  align-self: center;
 }
 
 .settings-row:last-child {
@@ -1086,8 +1111,17 @@ strong {
 }
 
 .tab-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
   font-size: var(--icon-sm);
   line-height: 1;
+}
+
+.tab-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .tab.active {

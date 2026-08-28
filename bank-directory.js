@@ -135,6 +135,19 @@ function bankLogo(bankOrName, size = "regular") {
 
 function iconSvg(name) {
   const icons = {
+    home: '<svg viewBox="0 0 24 24"><path d="m3 11 9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z"/></svg>',
+    list: '<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 7v5l3 2"/></svg>',
+    bell: '<svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9Z"/><path d="M10 21h4"/></svg>',
+    shield: '<svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-5"/></svg>',
+    key: '<svg viewBox="0 0 24 24"><path d="M15 7a4 4 0 1 0 2 3.5L22 15v3h-3v3h-3l-4.5-4.5"/><path d="M7 10h.01"/></svg>',
+    upload: '<svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/></svg>',
+    download: '<svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>',
+    user: '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6 9a7 7 0 0 1 11.7-2.7L20 8"/><path d="M18 15a7 7 0 0 1-11.7 2.7L4 16"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14"/><path d="M9 7V4h6v3"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"/><path d="M12 11v6M12 7h.01"/></svg>',
+    coin: '<svg viewBox="0 0 24 24"><path d="M12 20c5 0 9-2 9-4.5V8.5C21 6 17 4 12 4S3 6 3 8.5v7C3 18 7 20 12 20Z"/><path d="M3 8.5C3 11 7 13 12 13s9-2 9-4.5"/><path d="M3 12c0 2.5 4 4.5 9 4.5s9-2 9-4.5"/></svg>',
     wallet: '<svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v2h-4.5a3.5 3.5 0 0 0 0 7H20v1a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5v-9Z"/><path d="M15.5 11H21v3h-5.5a1.5 1.5 0 0 1 0-3Z"/></svg>',
     receipt: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
     piggy: '<svg viewBox="0 0 24 24"><path d="M5 12a6 6 0 0 1 6-6h3.5A4.5 4.5 0 0 1 19 10.5h1.5V15H19a5 5 0 0 1-2 2.3V20h-3v-2h-4v2H7v-2.4A6 6 0 0 1 5 12Z"/><path d="M8 8 6 5M15 10h.01"/></svg>',
