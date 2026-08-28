@@ -151,6 +151,11 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function newId() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID()
+  return `qlct-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 function loadState() {
   const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]
   for (const key of keys) {
@@ -170,6 +175,7 @@ function loadState() {
 
 function normalizeState(saved) {
   const base = clone(emptyState)
+  const payments = Array.isArray(saved.payments) ? saved.payments.map(normalizePayment) : []
   return {
     ...base,
     ...saved,
@@ -178,9 +184,35 @@ function normalizeState(saved) {
     paymentFilter: saved.paymentFilter || base.paymentFilter,
     paymentSort: saved.paymentSort || base.paymentSort,
     selectedMonth: saved.selectedMonth || currentMonthKey(),
-    payments: Array.isArray(saved.payments) ? saved.payments : [],
+    payments,
     imported: Array.isArray(saved.imported) ? saved.imported : [],
     notifications: Array.isArray(saved.notifications) ? saved.notifications : []
+  }
+}
+
+function normalizePayment(payment) {
+  const recurrence = payment.recurrence || "ONCE"
+  const paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
+  const amount = Number(payment.amount || 0)
+  const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, Number(payment.installmentCount || 12)) : Number(payment.installmentCount || 0)
+  const paidInstallmentCount = recurrence === "INSTALLMENT"
+    ? Object.values(paidMonths).filter(Boolean).length || Number(payment.paidInstallmentCount || 0)
+    : Number(payment.paidInstallmentCount || 0)
+  const originalPrincipal = recurrence === "INSTALLMENT"
+    ? Number(payment.originalPrincipal || amount * installmentCount)
+    : Number(payment.originalPrincipal || 0)
+
+  return {
+    ...payment,
+    amount,
+    recurrence,
+    paidMonths,
+    installmentCount,
+    paidInstallmentCount,
+    originalPrincipal,
+    remainingPrincipal: recurrence === "INSTALLMENT"
+      ? Math.max(0, originalPrincipal - paidInstallmentCount * amount)
+      : Number(payment.remainingPrincipal || 0)
   }
 }
 
@@ -340,7 +372,94 @@ function matchesViewingMonth(value) {
 }
 
 function paymentsForViewingMonth() {
-  return state.payments.filter(payment => matchesViewingMonth(payment.dueDate || payment.createdAt))
+  return state.payments
+    .map(payment => materializePaymentForMonth(payment, viewingMonth()))
+    .filter(Boolean)
+}
+
+function paymentOccurrenceMonths(payment) {
+  const baseDate = eventDate(payment.dueDate || payment.createdAt)
+  if (!baseDate) return []
+
+  const startMonth = monthKey(baseDate)
+  const recurrence = payment.recurrence || "ONCE"
+  if (recurrence === "ONCE") return [startMonth]
+
+  const paidMonths = Object.keys(payment.paidMonths || {})
+  const endMonthNumber = Math.max(
+    monthNumber(currentMonthKey()),
+    monthNumber(viewingMonth()),
+    ...paidMonths.map(monthNumber)
+  )
+
+  if (recurrence === "INSTALLMENT") {
+    const count = Math.max(1, Number(payment.installmentCount || 12))
+    return Array.from({ length: count }, (_, index) => addMonths(startMonth, index))
+  }
+
+  if (recurrence === "MONTHLY") {
+    const count = Math.max(1, endMonthNumber - monthNumber(startMonth) + 1)
+    return Array.from({ length: count }, (_, index) => addMonths(startMonth, index))
+  }
+
+  return [startMonth]
+}
+
+function daysInMonth(year, month) {
+  return new Date(year, month, 0).getDate()
+}
+
+function monthNumber(key) {
+  const [year, month] = String(key || currentMonthKey()).split("-").map(Number)
+  return year * 12 + month - 1
+}
+
+function monthOffset(fromKey, toKey) {
+  return monthNumber(toKey) - monthNumber(fromKey)
+}
+
+function dueDateInMonth(originalDate, key) {
+  const [year, month] = String(key).split("-").map(Number)
+  const originalDay = Number(String(originalDate || "").slice(8, 10)) || 1
+  const day = Math.min(originalDay, daysInMonth(year, month))
+  return `${key}-${String(day).padStart(2, "0")}`
+}
+
+function materializePaymentForMonth(payment, key) {
+  const baseDate = eventDate(payment.dueDate || payment.createdAt)
+  if (!baseDate) return null
+
+  const startMonth = monthKey(baseDate)
+  const recurrence = payment.recurrence || "ONCE"
+  const offset = monthOffset(startMonth, key)
+  if (recurrence === "ONCE" && startMonth !== key) return null
+  if (recurrence === "MONTHLY" && offset < 0) return null
+  if (recurrence === "INSTALLMENT") {
+    const count = Math.max(1, Number(payment.installmentCount || 12))
+    if (offset < 0 || offset >= count) return null
+  }
+
+  const paidMonths = payment.paidMonths || {}
+  const paid = recurrence === "ONCE"
+    ? Boolean(payment.paid || payment.status === "PAID")
+    : Boolean(paidMonths[key])
+  const paidInstallmentCount = recurrence === "INSTALLMENT"
+    ? Object.keys(paidMonths).filter(month => paidMonths[month] && monthOffset(startMonth, month) >= 0 && monthOffset(startMonth, month) < Number(payment.installmentCount || 12)).length
+    : Number(payment.paidInstallmentCount || 0)
+  const originalPrincipal = Number(payment.originalPrincipal || Number(payment.amount || 0) * Number(payment.installmentCount || 12))
+
+  return {
+    ...payment,
+    baseId: payment.id,
+    occurrenceKey: key,
+    dueDate: recurrence === "ONCE" ? baseDate : dueDateInMonth(baseDate, key),
+    paid,
+    status: paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"),
+    paidInstallmentCount,
+    remainingPrincipal: recurrence === "INSTALLMENT"
+      ? Math.max(0, originalPrincipal - paidInstallmentCount * Number(payment.amount || 0))
+      : Number(payment.remainingPrincipal || 0)
+  }
 }
 
 function salaryForViewingMonth() {
@@ -465,10 +584,9 @@ function filteredPayments() {
 }
 
 function checklistPayments() {
-  const today = new Date()
   const [viewYear, viewMonth] = viewingMonth().split("-").map(Number)
-  const baseDate = isViewingCurrentMonth() ? today : new Date(viewYear, viewMonth - 1, 1)
-  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())
+  const startDay = state.checklistFilter === "today" && isViewingCurrentMonth() ? new Date().getDate() : 1
+  const start = new Date(viewYear, viewMonth - 1, startDay)
   const end = new Date(start)
   if (state.checklistFilter === "today") {
     end.setDate(start.getDate() + 1)
@@ -551,7 +669,7 @@ function renderTabIcons() {
   }
   document.querySelectorAll(".tab").forEach(tab => {
     const icon = tab.querySelector(".tab-icon")
-    if (icon) icon.innerHTML = iconSvg(icons[tab.dataset.tab] || "circle")
+    if (icon) icon.innerHTML = iconSvg(icons[tab.dataset.tab] || "info")
   })
 }
 
@@ -575,8 +693,8 @@ function header(title, subtitle = `${greeting()}, ${userName()}`) {
   return `
     <div class="top-row">
       <div>
-        <h1 class="title">${title}</h1>
-        <p class="subtitle">${subtitle}</p>
+        <h1 class="title">${safeText(title)}</h1>
+        <p class="subtitle">${safeText(subtitle)}</p>
       </div>
       <button class="bell ${count ? "has-count" : ""}" aria-label="Thông báo" data-count="${count}">${iconSvg("bell")}</button>
     </div>
@@ -586,12 +704,12 @@ function header(title, subtitle = `${greeting()}, ${userName()}`) {
 function monthSelector() {
   return `
     <section class="month-switcher section">
-      <button type="button" class="month-arrow" data-action="month-prev" aria-label="Tháng trước">‹</button>
+      <button type="button" class="month-arrow month-prev" data-action="month-prev" aria-label="Tháng trước">${iconSvg("chevronRight")}</button>
       <button type="button" class="month-current" data-action="open-month-picker">
         <span>Tháng đang xem</span>
         <strong>${monthLabel(viewingMonth())}</strong>
       </button>
-      <button type="button" class="month-arrow" data-action="month-next" aria-label="Tháng sau">›</button>
+      <button type="button" class="month-arrow month-next" data-action="month-next" aria-label="Tháng sau">${iconSvg("chevronRight")}</button>
       ${isViewingCurrentMonth() ? "" : `<button type="button" class="month-today" data-action="month-today">Về tháng này</button>`}
     </section>
   `
@@ -681,7 +799,7 @@ function renderDashboard() {
     <section class="section">
       <div class="section-head">
         <h2>Việc cần trả sắp đến hạn</h2>
-        <button class="link" data-tab-go="payments">Xem tất cả ›</button>
+      <button class="link icon-link" data-tab-go="payments"><span>Xem tất cả</span>${iconSvg("chevronRight")}</button>
       </div>
       ${nextPayments.length ? `<div class="card list">${nextPayments.map(paymentRow).join("")}</div>` : emptyCard(
         iconSvg("receipt"),
@@ -695,7 +813,7 @@ function renderDashboard() {
     <section class="section">
       <div class="section-head">
         <h2>Kế hoạch tháng này</h2>
-        <button class="link" data-tab-go="analytics">Xem chi tiết ›</button>
+      <button class="link icon-link" data-tab-go="analytics"><span>Xem chi tiết</span>${iconSvg("chevronRight")}</button>
       </div>
       <div class="card">
         ${progressRow(iconSvg("card"), "Tổng nợ", f.totalOutstandingDebt, 15000000, "var(--purple)")}
@@ -707,7 +825,7 @@ function renderDashboard() {
     <section class="section">
       <div class="section-head">
         <h2>Checklist hôm nay</h2>
-        <button class="link" data-tab-go="checklist">Xem tất cả ›</button>
+      <button class="link icon-link" data-tab-go="checklist"><span>Xem tất cả</span>${iconSvg("chevronRight")}</button>
       </div>
       ${checklist.length ? `<div class="card list">${checklist.map(checklistRow).join("")}</div>` : emptyCard(
         iconSvg("check"),
@@ -720,6 +838,10 @@ function renderDashboard() {
   `
 }
 
+function safeText(value) {
+  return escapeHtml(value)
+}
+
 function salaryCard() {
   const salary = arguments[0] || state.salary
   return `
@@ -729,7 +851,7 @@ function salaryCard() {
         <strong>Đã nhận diện lương</strong>
         <div class="desc">Lương đã được lưu từ dữ liệu bạn nhập</div>
         <div class="bank-line">
-          <strong>${salary.bank}</strong> · ${money(salary.amount)} · ${salary.description}
+          <strong>${safeText(salary.bank)}</strong> · ${money(salary.amount)} · ${safeText(salary.description)}
         </div>
       </div>
       <button class="pill green" data-action="open-import">Cập nhật lương</button>
@@ -771,7 +893,7 @@ function paymentRow(payment) {
       <div class="list-icon ${categoryTone(payment.category)}">${categoryIcon(payment.category)}</div>
       <div class="row-main">
         <div class="row-line row-line-top">
-          <div class="row-title">${payment.name}</div>
+          <div class="row-title">${safeText(payment.name)}</div>
           <div class="row-amount">${money(payment.amount)}</div>
         </div>
         <div class="row-line row-line-bottom">
@@ -780,7 +902,7 @@ function paymentRow(payment) {
         </div>
         ${statusHtml(payment)}
       </div>
-      <div class="chevron">›</div>
+      <div class="chevron">${iconSvg("chevronRight")}</div>
     </div>
   `
 }
@@ -795,7 +917,7 @@ function checklistRow(payment) {
       <button class="check ${payment.paid ? "done" : ""}" data-action="toggle-paid" data-id="${payment.id}">${payment.paid ? iconSvg("check") : ""}</button>
       <div class="row-main">
         <div class="row-line row-line-top">
-          <div class="row-title">${payment.name}</div>
+          <div class="row-title">${safeText(payment.name)}</div>
           <div class="row-amount">${money(payment.amount)}</div>
         </div>
         <div class="row-line row-line-bottom">
@@ -803,7 +925,7 @@ function checklistRow(payment) {
           <div class="row-sub">${meta}</div>
         </div>
       </div>
-      <div class="chevron">›</div>
+      <div class="chevron">${iconSvg("chevronRight")}</div>
     </div>
   `
 }
@@ -854,7 +976,7 @@ function renderPayments() {
     <section class="section">
       <div class="section-head">
         <h2>${payments.length} khoản phải trả</h2>
-        <button class="link" data-action="cycle-payment-sort">${sortLabels[state.paymentSort]}⌄</button>
+        <button class="link icon-link" data-action="cycle-payment-sort"><span>${sortLabels[state.paymentSort]}</span>${iconSvg("chevronDown")}</button>
       </div>
       ${payments.length ? `<div class="card list">${payments.map(paymentRow).join("")}</div>` : emptyCard(
         iconSvg("receipt"),
@@ -863,7 +985,7 @@ function renderPayments() {
         "Thêm khoản",
         "open-payment"
       )}
-      <button class="fab" data-action="open-payment">+</button>
+      <button class="fab" data-action="open-payment" aria-label="Thêm khoản">${iconSvg("plus")}</button>
     </section>
   `
 }
@@ -929,15 +1051,15 @@ function renderAnalytics() {
     </section>
     <section class="section card">
       ${analysisLine(iconSvg("wallet"), "Lương nhận", f.monthlyIncome, 100, "var(--green)")}
-      ${analysisLine("♦", "Khoản phải trả bắt buộc", f.remainingMandatory, f.monthlyIncome, "var(--red)")}
-      ${analysisLine("⊖", "Khoản có thể skip", f.remainingSkippable, f.monthlyIncome, "var(--orange)")}
+      ${analysisLine(iconSvg("receipt"), "Khoản phải trả bắt buộc", f.remainingMandatory, f.monthlyIncome, "var(--red)")}
+      ${analysisLine(iconSvg("clock"), "Khoản có thể skip", f.remainingSkippable, f.monthlyIncome, "var(--orange)")}
       ${analysisLine(iconSvg("coin"), "Khả dụng sau kế hoạch", f.availableAfterSavings, f.monthlyIncome, "var(--blue)")}
-      ${analysisLine("♧", "Tiết kiệm dự kiến", f.targetSavings, f.monthlyIncome, "var(--green)")}
+      ${analysisLine(iconSvg("piggy"), "Tiết kiệm dự kiến", f.targetSavings, f.monthlyIncome, "var(--green)")}
     </section>
     <section class="section">
       <div class="section-head">
         <h2>Lịch sử theo tháng</h2>
-        <button class="link" data-action="backup">Sao lưu ›</button>
+        <button class="link icon-link" data-action="backup"><span>Sao lưu</span>${iconSvg("chevronRight")}</button>
       </div>
       ${history.length ? `<div class="card list">${history.map(historyRow).join("")}</div>` : emptyCard(
         iconSvg("calendar"),
@@ -950,7 +1072,7 @@ function renderAnalytics() {
     <section class="section">
       <div class="section-head">
         <h2>Dòng thời gian</h2>
-        <button class="link" data-action="backup">Export ›</button>
+        <button class="link icon-link" data-action="backup"><span>Export</span>${iconSvg("chevronRight")}</button>
       </div>
       ${events.length ? `<div class="card list">${events.map(historyEventRow).join("")}</div>` : emptyCard(
         iconSvg("calendar"),
@@ -963,7 +1085,7 @@ function renderAnalytics() {
     <section class="section">
       <div class="section-head">
         <h2>Khuyến nghị thông minh</h2>
-        <button class="link" data-action="open-recommendations">Xem tất cả ›</button>
+        <button class="link icon-link" data-action="open-recommendations"><span>Xem tất cả</span>${iconSvg("chevronRight")}</button>
       </div>
       ${paymentsForViewingMonth().length || f.monthSalary ? `<div class="chips">
           <div class="card" style="min-width:150px;padding:14px"><strong>Dời khoản có thể skip</strong><p class="muted">Tiết kiệm thêm <span class="orange">${money(f.remainingSkippable)}</span></p></div>
@@ -986,12 +1108,12 @@ function historyEventRow(event) {
       <div class="list-icon ${event.type === "salary" ? "green" : "blue"}">${event.icon}</div>
       <div class="row-main">
         <div class="row-line row-line-top">
-          <strong class="row-title">${event.title}</strong>
+          <strong class="row-title">${safeText(event.title)}</strong>
           <strong class="${event.type === "salary" ? "green" : "red"} row-amount">${money(event.amount)}</strong>
         </div>
         <div class="row-line row-line-bottom">
           <div class="row-date">${formatDate(event.date)}</div>
-          <div class="row-sub">${event.note}</div>
+          <div class="row-sub">${safeText(event.note)}</div>
         </div>
       </div>
     </div>
@@ -1082,8 +1204,8 @@ function settingsRow(icon, title, desc, action) {
     <div class="settings-row">
       <div class="list-icon">${icon}</div>
       <div>
-        <strong>${title}</strong>
-        <div class="row-sub">${desc}</div>
+        <strong>${safeText(title)}</strong>
+        <div class="row-sub">${safeText(desc)}</div>
       </div>
       ${action}
     </div>
@@ -1245,8 +1367,9 @@ function escapeHtml(value) {
 }
 
 function openPaymentDetailModal(id) {
-  const payment = state.payments.find(item => item.id === id)
-  if (!payment) return
+  const basePayment = state.payments.find(item => item.id === id)
+  if (!basePayment) return
+  const payment = materializePaymentForMonth(basePayment, viewingMonth()) || basePayment
 
   openModal(`
     <h2>${escapeHtml(payment.name)}</h2>
@@ -1271,8 +1394,8 @@ function openPaymentDetailModal(id) {
     closeModal()
     togglePaid(id)
   }
-  document.querySelector("[data-action='detail-edit-payment']").onclick = () => openEditPaymentModal(id)
-  document.querySelector("[data-action='detail-delete-payment']").onclick = () => deletePayment(id)
+  document.querySelector("[data-action='detail-edit-payment']").onclick = () => openEditPaymentModal(basePayment.id)
+  document.querySelector("[data-action='detail-delete-payment']").onclick = () => deletePayment(basePayment.id)
 }
 
 function openEditPaymentModal(id) {
@@ -1296,11 +1419,15 @@ function openEditPaymentModal(id) {
       </div>
       <div class="field">
         <label>Loại lặp lại</label>
-        <select name="recurrence">
+        <select name="recurrence" id="editPaymentRecurrence">
           <option value="ONCE" ${payment.recurrence === "ONCE" ? "selected" : ""}>Một lần</option>
           <option value="MONTHLY" ${payment.recurrence === "MONTHLY" ? "selected" : ""}>Theo tháng</option>
           <option value="INSTALLMENT" ${payment.recurrence === "INSTALLMENT" ? "selected" : ""}>Trả góp</option>
         </select>
+      </div>
+      <div class="field ${payment.recurrence === "INSTALLMENT" ? "" : "hidden"}" id="editPaymentInstallmentField">
+        <label>Số kỳ trả góp</label>
+        <input name="installmentCount" inputmode="numeric" value="${payment.installmentCount || 12}" />
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
@@ -1319,18 +1446,43 @@ function openEditPaymentModal(id) {
   document.getElementById("editPaymentForm").onsubmit = event => {
     event.preventDefault()
     const form = new FormData(event.target)
-    payment.name = String(form.get("name") || "").trim()
-    payment.amount = parseMoney(form.get("amount"))
-    payment.dueDate = form.get("dueDate")
+    const name = String(form.get("name") || "").trim()
+    const amount = parseMoney(form.get("amount"))
+    if (!name) {
+      showToast("Nhập tên khoản cần trả")
+      return
+    }
+    if (!amount) {
+      showToast("Nhập số tiền lớn hơn 0")
+      return
+    }
+
+    payment.name = name
+    payment.amount = amount
+    payment.dueDate = form.get("dueDate") || dateForViewingMonth()
     payment.recurrence = form.get("recurrence")
     payment.priority = form.get("priority")
     payment.category = payment.recurrence === "INSTALLMENT" ? "laptop" : payment.category || "other"
+    payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
+    if (payment.recurrence === "INSTALLMENT") {
+      payment.installmentCount = Math.max(1, parseMoney(form.get("installmentCount") || payment.installmentCount || 12))
+      payment.originalPrincipal = Math.max(Number(payment.originalPrincipal || 0), payment.amount * payment.installmentCount)
+      payment.paidInstallmentCount = Object.keys(payment.paidMonths).filter(month => payment.paidMonths[month]).length
+      payment.remainingPrincipal = Math.max(0, payment.originalPrincipal - payment.paidInstallmentCount * payment.amount)
+    } else {
+      payment.installmentCount = 0
+      payment.originalPrincipal = 0
+      payment.remainingPrincipal = 0
+    }
     if (!payment.paid) payment.status = payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"
     closeModal()
     showToast("Đã lưu thay đổi")
     render()
   }
   bindMoneyInput(document.querySelector("#editPaymentForm [name='amount']"))
+  const recurrenceInput = document.getElementById("editPaymentRecurrence")
+  const installmentField = document.getElementById("editPaymentInstallmentField")
+  recurrenceInput.onchange = () => installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
 }
 
 function deletePayment(id) {
@@ -1490,16 +1642,31 @@ function togglePaid(id) {
   const payment = state.payments.find(item => item.id === id)
   if (!payment) return
 
-  payment.paid = !payment.paid
-  payment.status = payment.paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE")
+  const recurrence = payment.recurrence || "ONCE"
+  const key = viewingMonth()
 
-  if (payment.recurrence === "INSTALLMENT") {
-    const paid = payment.paid ? 1 : -1
-    payment.paidInstallmentCount = Math.max(0, Math.min(payment.installmentCount, (payment.paidInstallmentCount || 0) + paid))
-    payment.remainingPrincipal = Math.max(0, Number(payment.originalPrincipal || 0) - payment.paidInstallmentCount * Number(payment.amount || 0))
+  if (recurrence === "ONCE") {
+    payment.paid = !payment.paid
+    payment.status = payment.paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE")
+  } else {
+    payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
+    payment.paidMonths[key] = !payment.paidMonths[key]
+    payment.paid = false
+    payment.status = payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"
   }
 
-  showToast(payment.paid ? "Đã đánh dấu thanh toán" : "Đã undo thanh toán")
+  if (recurrence === "INSTALLMENT") {
+    const startMonth = monthKey(payment.dueDate || payment.createdAt)
+    const count = Math.max(1, Number(payment.installmentCount || 12))
+    payment.paidInstallmentCount = Object.keys(payment.paidMonths || {})
+      .filter(month => payment.paidMonths[month] && monthOffset(startMonth, month) >= 0 && monthOffset(startMonth, month) < count)
+      .length
+    payment.originalPrincipal = Number(payment.originalPrincipal || Number(payment.amount || 0) * count)
+    payment.remainingPrincipal = Math.max(0, payment.originalPrincipal - payment.paidInstallmentCount * Number(payment.amount || 0))
+  }
+
+  const current = materializePaymentForMonth(payment, key) || payment
+  showToast(current.paid ? "Đã đánh dấu thanh toán" : "Đã undo thanh toán")
   render()
 }
 
@@ -1595,11 +1762,15 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Loại lặp lại</label>
-        <select name="recurrence">
+        <select name="recurrence" id="paymentRecurrence">
           <option value="ONCE">Một lần</option>
           <option value="MONTHLY">Theo tháng</option>
           <option value="INSTALLMENT">Trả góp</option>
         </select>
+      </div>
+      <div class="field hidden" id="paymentInstallmentField">
+        <label>Số kỳ trả góp</label>
+        <input name="installmentCount" inputmode="numeric" placeholder="12" value="12" />
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
@@ -1618,23 +1789,43 @@ function openPaymentModal() {
   document.getElementById("paymentForm").onsubmit = event => {
     event.preventDefault()
     const form = new FormData(event.target)
-    state.payments.unshift({
-      id: crypto.randomUUID(),
-      name: form.get("name"),
-      amount: parseMoney(form.get("amount")),
-      dueDate: form.get("dueDate"),
+    const recurrence = form.get("recurrence")
+    const name = String(form.get("name") || "").trim()
+    const amount = parseMoney(form.get("amount"))
+    const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, parseMoney(form.get("installmentCount") || 12)) : 0
+    if (!name) {
+      showToast("Nhập tên khoản cần trả")
+      return
+    }
+    if (!amount) {
+      showToast("Nhập số tiền lớn hơn 0")
+      return
+    }
+
+    state.payments.unshift(normalizePayment({
+      id: newId(),
+      name,
+      amount,
+      dueDate: form.get("dueDate") || dateForViewingMonth(),
       createdAt: new Date().toISOString(),
-      recurrence: form.get("recurrence"),
+      recurrence,
       priority: form.get("priority"),
-      category: form.get("recurrence") === "INSTALLMENT" ? "laptop" : "other",
+      category: recurrence === "INSTALLMENT" ? "laptop" : "other",
       status: form.get("priority") === "SKIPPABLE" ? "DEFERABLE" : "DUE",
-      paid: false
-    })
+      paid: false,
+      paidMonths: {},
+      installmentCount,
+      originalPrincipal: installmentCount ? amount * installmentCount : 0,
+      remainingPrincipal: installmentCount ? amount * installmentCount : 0
+    }))
     closeModal()
     showToast("Đã thêm khoản phải trả")
     render()
   }
   bindMoneyInput(document.querySelector("#paymentForm [name='amount']"))
+  const recurrenceInput = document.getElementById("paymentRecurrence")
+  const installmentField = document.getElementById("paymentInstallmentField")
+  recurrenceInput.onchange = () => installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
 }
 
 function openProfileModal() {
@@ -1698,10 +1889,10 @@ function openBankDirectoryModal() {
       <button class="bank-option" type="button" data-bank-directory-id="${bank.id}">
         ${bankLogo(bank, "small")}
         <span>
-          <strong>${bank.displayName}</strong>
-          <span class="row-sub">${bank.shortName} · ${bank.category}</span>
+          <strong>${safeText(bank.displayName)}</strong>
+          <span class="row-sub">${safeText(bank.shortName)} · ${safeText(bank.category)}</span>
         </span>
-        <span class="chevron">›</span>
+        <span class="chevron">${iconSvg("chevronRight")}</span>
       </button>
     `).join("")
 
@@ -1713,7 +1904,7 @@ function openBankDirectoryModal() {
             <strong>Ngân hàng khác</strong>
             <span class="row-sub">Cho phép nhập tên, viết tắt và alias riêng</span>
           </span>
-          <span class="chevron">›</span>
+          <span class="chevron">${iconSvg("chevronRight")}</span>
         </button>
       `
       : ""
@@ -1805,8 +1996,8 @@ function openImportModal() {
       <button class="salary-bank-choice ${selectedManualBank?.id === bank.id ? "selected" : ""}" type="button" data-manual-bank-id="${bank.id}">
         ${bankLogo(bank, "small")}
         <span>
-          <strong>${bank.displayName}</strong>
-          <span class="row-sub">${bank.shortName}</span>
+            <strong>${safeText(bank.displayName)}</strong>
+            <span class="row-sub">${safeText(bank.shortName)}</span>
         </span>
       </button>
     `).join("")
@@ -1843,10 +2034,10 @@ function openImportModal() {
   const showParsedPreview = () => {
     analysisPreview.innerHTML = parsed
       ? `<div class="card" style="padding:14px;margin-top:10px">
-          <strong>${parsed.bank}</strong> · <span class="${parsed.type === "CREDIT" ? "green" : "red"}">${parsed.type}</span>
+          <strong>${safeText(parsed.bank)}</strong> · <span class="${parsed.type === "CREDIT" ? "green" : "red"}">${safeText(parsed.type)}</span>
           <div class="preview-amount">${money(parsed.amount)}</div>
           <div class="muted">${parsed.date || "Chưa rõ ngày"} · Confidence ${parsed.confidence}</div>
-          <div class="bank-line">${parsed.description || "Chưa nhận diện mô tả"}</div>
+          <div class="bank-line">${safeText(parsed.description || "Chưa nhận diện mô tả")}</div>
         </div>`
       : `<div class="card" style="padding:14px;margin-top:10px;color:var(--red)">Không parse được nội dung này.</div>`
   }
@@ -1911,7 +2102,7 @@ function openImportModal() {
         confidence: "MANUAL"
       }
       upsertSalaryForMonth(salary, {
-        id: crypto.randomUUID(),
+        id: newId(),
         raw: "",
         amount,
         bank,
@@ -1965,7 +2156,7 @@ function openImportModal() {
       confidence: parsed?.confidence || "MEDIUM"
     }
     upsertSalaryForMonth(salary, {
-      id: crypto.randomUUID(),
+      id: newId(),
       raw: input.value,
       ...(parsed || {}),
       amount,
@@ -2018,8 +2209,10 @@ function parseMoney(value) {
 }
 
 function formatDate(value) {
-  if (!value) return ""
-  const [year, month, day] = value.split("-")
+  const date = eventDate(value)
+  if (!date) return ""
+  const [year, month, day] = date.split("-")
+  if (!year || !month || !day) return ""
   return `${day}/${month}/${year}`
 }
 
@@ -2063,12 +2256,16 @@ function historySummary() {
   }
 
   for (const payment of state.payments) {
-    const bucket = ensure(monthKey(payment.dueDate || payment.createdAt))
-    bucket.payments += 1
-    if (payment.paid || payment.status === "PAID") {
-      bucket.paid += Number(payment.amount || 0)
-    } else {
-      bucket.due += Number(payment.amount || 0)
+    for (const key of paymentOccurrenceMonths(payment)) {
+      const occurrence = materializePaymentForMonth(payment, key)
+      if (!occurrence) continue
+      const bucket = ensure(key)
+      bucket.payments += 1
+      if (occurrence.paid || occurrence.status === "PAID") {
+        bucket.paid += Number(occurrence.amount || 0)
+      } else {
+        bucket.due += Number(occurrence.amount || 0)
+      }
     }
   }
 
@@ -2092,14 +2289,17 @@ function historyEvents() {
       date: eventDate(item.isoDate || item.savedAt || item.date)
     }))
 
-  const payments = state.payments.map(payment => ({
-    type: "payment",
-    icon: iconSvg("receipt"),
-    title: payment.name,
-    note: payment.paid ? "Đã thanh toán" : "Khoản cần trả",
-    amount: Number(payment.amount || 0),
-    date: eventDate(payment.dueDate || payment.createdAt)
-  }))
+  const payments = state.payments.flatMap(payment => paymentOccurrenceMonths(payment)
+    .map(key => materializePaymentForMonth(payment, key))
+    .filter(Boolean)
+    .map(occurrence => ({
+      type: "payment",
+      icon: iconSvg("receipt"),
+      title: occurrence.name,
+      note: occurrence.paid ? "Đã thanh toán" : "Khoản cần trả",
+      amount: Number(occurrence.amount || 0),
+      date: eventDate(occurrence.dueDate || occurrence.createdAt)
+    })))
 
   return [...salaries, ...payments]
     .filter(item => item.date)
@@ -2138,7 +2338,7 @@ function showToast(message) {
 }
 
 function loadSample() {
-  state = clone(sampleState)
+  state = normalizeState(sampleState)
   showToast("Đã load sample data")
   render()
 }
@@ -2207,7 +2407,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=23").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=24").catch(() => {})
 }
 
 installScrollGuard()
