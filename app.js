@@ -194,6 +194,9 @@ function normalizePayment(payment) {
   const recurrence = payment.recurrence || "ONCE"
   const paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
   const amount = Number(payment.amount || 0)
+  const baseMonth = monthKey(payment.dueDate || payment.createdAt) || currentMonthKey()
+  const monthlyStartMonth = recurrence === "MONTHLY" ? (payment.monthlyStartMonth || baseMonth) : ""
+  const monthlyEndMonth = recurrence === "MONTHLY" ? (payment.monthlyEndMonth || addMonths(monthlyStartMonth, 11)) : ""
   const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, Number(payment.installmentCount || 12)) : Number(payment.installmentCount || 0)
   const paidInstallmentCount = recurrence === "INSTALLMENT"
     ? Object.values(paidMonths).filter(Boolean).length || Number(payment.paidInstallmentCount || 0)
@@ -207,6 +210,8 @@ function normalizePayment(payment) {
     amount,
     recurrence,
     paidMonths,
+    monthlyStartMonth,
+    monthlyEndMonth,
     installmentCount,
     paidInstallmentCount,
     originalPrincipal,
@@ -381,7 +386,9 @@ function paymentOccurrenceMonths(payment) {
   const baseDate = eventDate(payment.dueDate || payment.createdAt)
   if (!baseDate) return []
 
-  const startMonth = monthKey(baseDate)
+  const startMonth = payment.recurrence === "MONTHLY"
+    ? (payment.monthlyStartMonth || monthKey(baseDate))
+    : monthKey(baseDate)
   const recurrence = payment.recurrence || "ONCE"
   if (recurrence === "ONCE") return [startMonth]
 
@@ -398,7 +405,9 @@ function paymentOccurrenceMonths(payment) {
   }
 
   if (recurrence === "MONTHLY") {
-    const count = Math.max(1, endMonthNumber - monthNumber(startMonth) + 1)
+    const endMonth = payment.monthlyEndMonth || addMonths(startMonth, 11)
+    const cappedEndMonthNumber = Math.min(endMonthNumber, monthNumber(endMonth))
+    const count = Math.max(0, cappedEndMonthNumber - monthNumber(startMonth) + 1)
     return Array.from({ length: count }, (_, index) => addMonths(startMonth, index))
   }
 
@@ -429,11 +438,16 @@ function materializePaymentForMonth(payment, key) {
   const baseDate = eventDate(payment.dueDate || payment.createdAt)
   if (!baseDate) return null
 
-  const startMonth = monthKey(baseDate)
   const recurrence = payment.recurrence || "ONCE"
+  const startMonth = recurrence === "MONTHLY"
+    ? (payment.monthlyStartMonth || monthKey(baseDate))
+    : monthKey(baseDate)
   const offset = monthOffset(startMonth, key)
   if (recurrence === "ONCE" && startMonth !== key) return null
-  if (recurrence === "MONTHLY" && offset < 0) return null
+  if (recurrence === "MONTHLY") {
+    const endMonth = payment.monthlyEndMonth || addMonths(startMonth, 11)
+    if (offset < 0 || monthNumber(key) > monthNumber(endMonth)) return null
+  }
   if (recurrence === "INSTALLMENT") {
     const count = Math.max(1, Number(payment.installmentCount || 12))
     if (offset < 0 || offset >= count) return null
@@ -1380,6 +1394,7 @@ function openPaymentDetailModal(id) {
         <div class="detail-box"><span>Loại</span><strong>${payment.recurrence === "INSTALLMENT" ? "Trả góp" : payment.recurrence === "MONTHLY" ? "Theo tháng" : "Một lần"}</strong></div>
         <div class="detail-box"><span>Trạng thái</span><strong>${payment.paid ? "Đã trả" : "Chưa trả"}</strong></div>
       </div>
+      ${payment.recurrence === "MONTHLY" ? `<div class="bank-line">Áp dụng từ ${monthLabel(payment.monthlyStartMonth)} đến ${monthLabel(payment.monthlyEndMonth)}</div>` : ""}
       ${payment.recurrence === "INSTALLMENT" ? `<div class="bank-line">Đã trả ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0} kỳ · Còn nợ ${money(payment.remainingPrincipal || 0)}</div>` : ""}
       <div class="form-actions stack-actions">
         <button type="button" class="primary" data-action="detail-toggle-paid">${payment.paid ? "Đánh dấu chưa trả" : "Đánh dấu đã trả"}</button>
@@ -1416,6 +1431,16 @@ function openEditPaymentModal(id) {
       <div class="field">
         <label>Ngày đến hạn</label>
         <input name="dueDate" type="date" value="${payment.dueDate || ""}" />
+      </div>
+      <div class="dual-field ${payment.recurrence === "MONTHLY" ? "" : "hidden"}" id="editPaymentMonthlyRange">
+        <div class="field">
+          <label>Tháng bắt đầu</label>
+          <input name="monthlyStartMonth" type="month" value="${payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth()}" />
+        </div>
+        <div class="field">
+          <label>Tháng kết thúc</label>
+          <input name="monthlyEndMonth" type="month" value="${payment.monthlyEndMonth || addMonths(payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth(), 11)}" />
+        </div>
       </div>
       <div class="field">
         <label>Loại lặp lại</label>
@@ -1459,8 +1484,18 @@ function openEditPaymentModal(id) {
 
     payment.name = name
     payment.amount = amount
-    payment.dueDate = form.get("dueDate") || dateForViewingMonth()
     payment.recurrence = form.get("recurrence")
+    const monthlyStartMonth = form.get("monthlyStartMonth") || monthKey(form.get("dueDate")) || viewingMonth()
+    const monthlyEndMonth = form.get("monthlyEndMonth") || monthlyStartMonth
+    if (payment.recurrence === "MONTHLY" && monthNumber(monthlyEndMonth) < monthNumber(monthlyStartMonth)) {
+      showToast("Tháng kết thúc phải sau tháng bắt đầu")
+      return
+    }
+    payment.monthlyStartMonth = payment.recurrence === "MONTHLY" ? monthlyStartMonth : ""
+    payment.monthlyEndMonth = payment.recurrence === "MONTHLY" ? monthlyEndMonth : ""
+    payment.dueDate = payment.recurrence === "MONTHLY"
+      ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
+      : (form.get("dueDate") || dateForViewingMonth())
     payment.priority = form.get("priority")
     payment.category = payment.recurrence === "INSTALLMENT" ? "laptop" : payment.category || "other"
     payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
@@ -1482,7 +1517,11 @@ function openEditPaymentModal(id) {
   bindMoneyInput(document.querySelector("#editPaymentForm [name='amount']"))
   const recurrenceInput = document.getElementById("editPaymentRecurrence")
   const installmentField = document.getElementById("editPaymentInstallmentField")
-  recurrenceInput.onchange = () => installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+  const monthlyRange = document.getElementById("editPaymentMonthlyRange")
+  recurrenceInput.onchange = () => {
+    installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+  }
 }
 
 function deletePayment(id) {
@@ -1760,6 +1799,16 @@ function openPaymentModal() {
         <label>Ngày đến hạn</label>
         <input name="dueDate" type="date" value="${today}" />
       </div>
+      <div class="dual-field hidden" id="paymentMonthlyRange">
+        <div class="field">
+          <label>Tháng bắt đầu</label>
+          <input name="monthlyStartMonth" type="month" value="${viewingMonth()}" />
+        </div>
+        <div class="field">
+          <label>Tháng kết thúc</label>
+          <input name="monthlyEndMonth" type="month" value="${addMonths(viewingMonth(), 11)}" />
+        </div>
+      </div>
       <div class="field">
         <label>Loại lặp lại</label>
         <select name="recurrence" id="paymentRecurrence">
@@ -1793,6 +1842,8 @@ function openPaymentModal() {
     const name = String(form.get("name") || "").trim()
     const amount = parseMoney(form.get("amount"))
     const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, parseMoney(form.get("installmentCount") || 12)) : 0
+    const monthlyStartMonth = form.get("monthlyStartMonth") || monthKey(form.get("dueDate")) || viewingMonth()
+    const monthlyEndMonth = form.get("monthlyEndMonth") || monthlyStartMonth
     if (!name) {
       showToast("Nhập tên khoản cần trả")
       return
@@ -1801,14 +1852,22 @@ function openPaymentModal() {
       showToast("Nhập số tiền lớn hơn 0")
       return
     }
+    if (recurrence === "MONTHLY" && monthNumber(monthlyEndMonth) < monthNumber(monthlyStartMonth)) {
+      showToast("Tháng kết thúc phải sau tháng bắt đầu")
+      return
+    }
 
     state.payments.unshift(normalizePayment({
       id: newId(),
       name,
       amount,
-      dueDate: form.get("dueDate") || dateForViewingMonth(),
+      dueDate: recurrence === "MONTHLY"
+        ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
+        : (form.get("dueDate") || dateForViewingMonth()),
       createdAt: new Date().toISOString(),
       recurrence,
+      monthlyStartMonth: recurrence === "MONTHLY" ? monthlyStartMonth : "",
+      monthlyEndMonth: recurrence === "MONTHLY" ? monthlyEndMonth : "",
       priority: form.get("priority"),
       category: recurrence === "INSTALLMENT" ? "laptop" : "other",
       status: form.get("priority") === "SKIPPABLE" ? "DEFERABLE" : "DUE",
@@ -1825,7 +1884,11 @@ function openPaymentModal() {
   bindMoneyInput(document.querySelector("#paymentForm [name='amount']"))
   const recurrenceInput = document.getElementById("paymentRecurrence")
   const installmentField = document.getElementById("paymentInstallmentField")
-  recurrenceInput.onchange = () => installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+  const monthlyRange = document.getElementById("paymentMonthlyRange")
+  recurrenceInput.onchange = () => {
+    installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+  }
 }
 
 function openProfileModal() {
@@ -2407,7 +2470,7 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=24").catch(() => {})
+  navigator.serviceWorker.register("sw.js?v=25").catch(() => {})
 }
 
 installScrollGuard()
