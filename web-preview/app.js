@@ -732,6 +732,7 @@ function monthSelector() {
     <section class="month-switcher section">
       <button type="button" class="month-arrow month-prev" data-action="month-prev" aria-label="Tháng trước">${iconSvg("chevronRight")}</button>
       <button type="button" class="month-current" data-action="open-month-picker">
+        <span class="month-current-icon">${iconSvg("calendar")}</span>
         <span>Tháng đang xem</span>
         <strong>${monthLabel(viewingMonth())}</strong>
       </button>
@@ -1366,7 +1367,11 @@ function openMonthPickerModal() {
     <form id="monthPickerForm" class="form">
       <div class="field">
         <label>Tháng cần xem</label>
-        <input name="month" type="month" value="${viewingMonth()}" required />
+        <div class="time-field">
+          <span class="time-field-icon">${iconSvg("calendar")}</span>
+          <input name="month" type="month" value="${viewingMonth()}" required />
+          <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+        </div>
       </div>
       <div class="form-actions">
         <button type="button" class="ghost" data-close>Hủy</button>
@@ -1442,16 +1447,28 @@ function openEditPaymentModal(id) {
       </div>
       <div class="field">
         <label>Ngày đến hạn</label>
-        <input name="dueDate" type="date" value="${payment.dueDate || ""}" />
+        <div class="time-field">
+          <span class="time-field-icon">${iconSvg("calendar")}</span>
+          <input name="dueDate" type="date" value="${payment.dueDate || ""}" />
+          <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+        </div>
       </div>
       <div class="dual-field ${payment.recurrence === "MONTHLY" ? "" : "hidden"}" id="editPaymentMonthlyRange">
         <div class="field">
           <label>Tháng bắt đầu</label>
-          <input name="monthlyStartMonth" type="month" value="${payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth()}" />
+          <div class="time-field compact">
+            <span class="time-field-icon">${iconSvg("calendar")}</span>
+            <input name="monthlyStartMonth" type="month" value="${payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth()}" />
+            <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+          </div>
         </div>
         <div class="field">
           <label>Tháng kết thúc</label>
-          <input name="monthlyEndMonth" type="month" value="${payment.monthlyEndMonth || addMonths(payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth(), 11)}" />
+          <div class="time-field compact">
+            <span class="time-field-icon">${iconSvg("calendar")}</span>
+            <input name="monthlyEndMonth" type="month" value="${payment.monthlyEndMonth || addMonths(payment.monthlyStartMonth || monthKey(payment.dueDate || payment.createdAt) || viewingMonth(), 11)}" />
+            <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+          </div>
         </div>
       </div>
       <div class="field">
@@ -1809,16 +1826,28 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Ngày đến hạn</label>
-        <input name="dueDate" type="date" value="${today}" />
+        <div class="time-field">
+          <span class="time-field-icon">${iconSvg("calendar")}</span>
+          <input name="dueDate" type="date" value="${today}" />
+          <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+        </div>
       </div>
       <div class="dual-field hidden" id="paymentMonthlyRange">
         <div class="field">
           <label>Tháng bắt đầu</label>
-          <input name="monthlyStartMonth" type="month" value="${viewingMonth()}" />
+          <div class="time-field compact">
+            <span class="time-field-icon">${iconSvg("calendar")}</span>
+            <input name="monthlyStartMonth" type="month" value="${viewingMonth()}" />
+            <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+          </div>
         </div>
         <div class="field">
           <label>Tháng kết thúc</label>
-          <input name="monthlyEndMonth" type="month" value="${addMonths(viewingMonth(), 11)}" />
+          <div class="time-field compact">
+            <span class="time-field-icon">${iconSvg("calendar")}</span>
+            <input name="monthlyEndMonth" type="month" value="${addMonths(viewingMonth(), 11)}" />
+            <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+          </div>
         </div>
       </div>
       <div class="field">
@@ -2495,7 +2524,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=26").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=27").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
