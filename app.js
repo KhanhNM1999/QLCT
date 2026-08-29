@@ -683,8 +683,20 @@ function renderTabIcons() {
   }
   document.querySelectorAll(".tab").forEach(tab => {
     const icon = tab.querySelector(".tab-icon")
-    if (icon) icon.innerHTML = iconSvg(icons[tab.dataset.tab] || "info")
+    if (icon) icon.innerHTML = tabIconSvg(icons[tab.dataset.tab] || "info")
   })
+}
+
+function tabIconSvg(name) {
+  const icons = {
+    home: '<svg viewBox="0 0 24 24"><path class="tab-fill" d="M4.25 10.9 12 4.45l7.75 6.45v8.15c0 .86-.69 1.55-1.55 1.55h-3.85v-5.3c0-.66-.54-1.2-1.2-1.2h-2.3c-.66 0-1.2.54-1.2 1.2v5.3H5.8c-.86 0-1.55-.69-1.55-1.55V10.9Z"/><path class="tab-cut" d="M2.8 11.3 12 3.65l9.2 7.65"/></svg>',
+    receipt: '<svg viewBox="0 0 24 24"><path class="tab-fill" d="M7.25 3.2h9.5c.86 0 1.55.69 1.55 1.55v15.9l-3.05-1.82-3.25 1.94-3.25-1.94-3.05 1.82V4.75c0-.86.69-1.55 1.55-1.55Z"/><path class="tab-cut" d="M9.35 8.25h5.3M9.35 11.95h5.3M9.35 15.65h3.65"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path class="tab-fill" d="M5.65 3.6h12.7c1.13 0 2.05.92 2.05 2.05v12.7c0 1.13-.92 2.05-2.05 2.05H5.65a2.05 2.05 0 0 1-2.05-2.05V5.65c0-1.13.92-2.05 2.05-2.05Z"/><path class="tab-cut" d="m7.55 12.25 3 3 6-6.5"/></svg>',
+    chart: '<svg viewBox="0 0 24 24"><path class="tab-ghost" d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5H12V3.5Z"/><path class="tab-fill" d="M13.75 3.5a8.5 8.5 0 0 1 6.75 6.75h-6.75V3.5Z"/></svg>',
+    settings: '<svg viewBox="0 0 24 24"><path class="tab-fill" d="M13.75 3.15 14.45 6c.45.13.88.31 1.28.53l2.48-1.52 2.05 2.05-1.52 2.48c.22.4.4.83.53 1.28l2.78.7v2.96l-2.78.7c-.13.45-.31.88-.53 1.28l1.52 2.48-2.05 2.05-2.48-1.52c-.4.22-.83.4-1.28.53l-.7 2.85h-3.5L9.55 20a7.14 7.14 0 0 1-1.28-.53l-2.48 1.52-2.05-2.05 1.52-2.48c-.22-.4-.4-.83-.53-1.28l-2.78-.7v-2.96l2.78-.7c.13-.45.31-.88.53-1.28L3.74 7.06l2.05-2.05 2.48 1.52c.4-.22.83-.4 1.28-.53l.7-2.85h3.5Z"/><path class="tab-cut" d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z"/></svg>'
+  }
+
+  return icons[name] || iconSvg(name)
 }
 
 function greeting() {
@@ -2397,7 +2409,13 @@ function showToast(message) {
   toast.textContent = message
   toast.classList.add("show")
   clearTimeout(showToast.timer)
-  showToast.timer = setTimeout(() => toast.classList.remove("show"), 1800)
+  clearTimeout(showToast.clearTimer)
+  showToast.timer = setTimeout(() => {
+    toast.classList.remove("show")
+    showToast.clearTimer = setTimeout(() => {
+      if (!toast.classList.contains("show")) toast.textContent = ""
+    }, 220)
+  }, 1800)
 }
 
 function loadSample() {
@@ -2470,7 +2488,16 @@ document.getElementById("resetFromSide").onclick = () => {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=25").catch(() => {})
+  let refreshing = false
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
+
+  navigator.serviceWorker.register("sw.js?v=26").then(registration => {
+    registration.update?.()
+  }).catch(() => {})
 }
 
 installScrollGuard()
