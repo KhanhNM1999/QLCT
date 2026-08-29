@@ -1,4 +1,4 @@
-const STORAGE_KEY = "luongTietKiem.preview.v5"
+﻿const STORAGE_KEY = "luongTietKiem.preview.v5"
 const LEGACY_STORAGE_KEYS = [
   "luongTietKiem.preview.v4",
   "luongTietKiem.preview.v3",
@@ -2524,7 +2524,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=27").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=28").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
@@ -2532,3 +2532,4 @@ if ("serviceWorker" in navigator) {
 installScrollGuard()
 refreshStorageStatus()
 render()
+
