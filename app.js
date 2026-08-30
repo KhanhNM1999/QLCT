@@ -3966,7 +3966,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=37").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=38").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
