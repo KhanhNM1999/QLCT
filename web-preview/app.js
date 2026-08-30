@@ -512,6 +512,39 @@ function categoryPickerPanel() {
   `
 }
 
+function choiceField(name, id, value, options, compact = false) {
+  return `
+    <input type="hidden" name="${name}" id="${id}" value="${escapeHtml(value)}" />
+    <div class="choice-grid ${compact ? "compact" : ""}" data-choice-name="${name}" data-choice-target="${id}">
+      ${options.map(option => `
+        <button type="button" class="choice-card ${option.value === value ? "selected" : ""}" data-choice-value="${option.value}">
+          <span class="choice-icon ${option.tone || "neutral"}">${option.icon}</span>
+          <span>
+            <strong>${escapeHtml(option.label)}</strong>
+            ${option.desc ? `<small>${escapeHtml(option.desc)}</small>` : ""}
+          </span>
+        </button>
+      `).join("")}
+    </div>
+  `
+}
+
+function paymentTypeOptions() {
+  return [
+    { value: "ONCE", icon: "1x", label: "Một lần", desc: "Trả một lần rồi ẩn", tone: "blue" },
+    { value: "MONTHLY", icon: "↻", label: "Định kỳ", desc: "Lặp theo tháng", tone: "green" },
+    { value: "MONTHLY_DEBT", icon: "₫", label: "Khoản nợ", desc: "Theo dõi dư nợ", tone: "purple" },
+    { value: "INSTALLMENT", icon: "%", label: "Trả góp", desc: "Giảm dần theo thanh toán", tone: "orange" }
+  ]
+}
+
+function priorityOptions() {
+  return [
+    { value: "MUST_PAY", icon: "!", label: "Đúng hạn", desc: "Cần trả đúng kỳ", tone: "red" },
+    { value: "SKIPPABLE", icon: "↷", label: "Có thể skip", desc: "Có thể dời lại", tone: "orange" }
+  ]
+}
+
 function syncCategoryInputs(form, selection) {
   if (!form || !selection) return
   form.elements.categoryId.value = selection.categoryId
@@ -561,6 +594,19 @@ function bindCategoryPicker(form) {
         visible = visible || match
       })
       group.classList.toggle("hidden", !visible)
+    })
+  })
+}
+
+function bindChoiceFields(form) {
+  form?.querySelectorAll("[data-choice-target]").forEach(group => {
+    const input = document.getElementById(group.dataset.choiceTarget)
+    group.querySelectorAll("[data-choice-value]").forEach(button => {
+      button.onclick = () => {
+        input.value = button.dataset.choiceValue
+        group.querySelectorAll(".choice-card").forEach(item => item.classList.toggle("selected", item === button))
+        input.dispatchEvent(new Event("change"))
+      }
     })
   })
 }
@@ -2093,12 +2139,12 @@ function openEditPaymentModal(id) {
       </div>
       <div class="field">
         <label>Loại thanh toán</label>
-        <select name="recurrence" id="editPaymentRecurrence">
-          <option value="ONCE" ${payment.paymentType === "ONCE" || payment.recurrence === "ONCE" ? "selected" : ""}>Một lần</option>
-          <option value="MONTHLY" ${payment.paymentType === "RECURRING" || payment.recurrence === "MONTHLY" ? "selected" : ""}>Định kỳ thông thường</option>
-          <option value="MONTHLY_DEBT" ${payment.paymentType === "MONTHLY_DEBT" ? "selected" : ""}>Khoản nợ trả hàng tháng</option>
-          <option value="INSTALLMENT" ${payment.paymentType === "INSTALLMENT" || payment.recurrence === "INSTALLMENT" ? "selected" : ""}>Trả góp</option>
-        </select>
+        ${choiceField(
+          "recurrence",
+          "editPaymentRecurrence",
+          payment.paymentType === "MONTHLY_DEBT" ? "MONTHLY_DEBT" : payment.paymentType === "INSTALLMENT" || payment.recurrence === "INSTALLMENT" ? "INSTALLMENT" : payment.recurrence === "MONTHLY" ? "MONTHLY" : "ONCE",
+          paymentTypeOptions()
+        )}
       </div>
       <section class="debt-form-section ${isDebtPayment(payment) ? "" : "hidden"}" id="editPaymentDebtSection">
         <div class="section-head compact-head"><h2>Thông tin khoản nợ</h2></div>
@@ -2126,10 +2172,7 @@ function openEditPaymentModal(id) {
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
-        <select name="priority">
-          <option value="MUST_PAY" ${payment.priority === "MUST_PAY" ? "selected" : ""}>Cần phải trả đúng kỳ hạn</option>
-          <option value="SKIPPABLE" ${payment.priority === "SKIPPABLE" ? "selected" : ""}>Có thể skip</option>
-        </select>
+        ${choiceField("priority", "editPaymentPriority", payment.priority || "MUST_PAY", priorityOptions(), true)}
       </div>
       <div class="form-actions">
         <button type="button" class="ghost" data-close>Hủy</button>
@@ -2212,6 +2255,7 @@ function openEditPaymentModal(id) {
   }
   const editForm = document.getElementById("editPaymentForm")
   bindCategoryPicker(editForm)
+  bindChoiceFields(editForm)
   ;["amount", "originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => bindMoneyInput(editForm.elements[name]))
   const recurrenceInput = document.getElementById("editPaymentRecurrence")
   const installmentField = document.getElementById("editPaymentInstallmentField")
@@ -2652,12 +2696,7 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Loại thanh toán</label>
-        <select name="recurrence" id="paymentRecurrence">
-          <option value="ONCE">Một lần</option>
-          <option value="MONTHLY">Định kỳ thông thường</option>
-          <option value="MONTHLY_DEBT">Khoản nợ trả hàng tháng</option>
-          <option value="INSTALLMENT">Trả góp</option>
-        </select>
+        ${choiceField("recurrence", "paymentRecurrence", "ONCE", paymentTypeOptions())}
       </div>
       <section class="debt-form-section hidden" id="paymentDebtSection">
         <div class="section-head compact-head"><h2>Thông tin khoản nợ</h2></div>
@@ -2685,10 +2724,7 @@ function openPaymentModal() {
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
-        <select name="priority">
-          <option value="MUST_PAY">Cần phải trả đúng kỳ hạn</option>
-          <option value="SKIPPABLE">Có thể skip</option>
-        </select>
+        ${choiceField("priority", "paymentPriority", "MUST_PAY", priorityOptions(), true)}
       </div>
       <div class="form-actions">
         <button type="button" class="ghost" data-close>Hủy</button>
@@ -2766,6 +2802,7 @@ function openPaymentModal() {
   }
   const paymentForm = document.getElementById("paymentForm")
   bindCategoryPicker(paymentForm)
+  bindChoiceFields(paymentForm)
   ;["amount", "originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => bindMoneyInput(paymentForm.elements[name]))
   const recurrenceInput = document.getElementById("paymentRecurrence")
   const installmentField = document.getElementById("paymentInstallmentField")
@@ -3389,7 +3426,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=29").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=30").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
@@ -3397,4 +3434,5 @@ if ("serviceWorker" in navigator) {
 installScrollGuard()
 refreshStorageStatus()
 render()
+
 
