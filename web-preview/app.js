@@ -1630,7 +1630,7 @@ function bindAuthActions() {
       if (mode === "signup") {
         const data = await signUpSupabase(username, password)
         if (!data?.access_token) {
-          showToast("Đã đăng ký, cần tắt xác nhận email trong Supabase")
+          showToast("Đã đăng ký, cần tắt xác nhận tài khoản trong Supabase")
           return
         }
       } else {
@@ -3966,7 +3966,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=36").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=37").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
