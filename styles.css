@@ -410,6 +410,18 @@ strong {
   padding: 16px;
 }
 
+.cloud-login-entry {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.cloud-login-entry svg {
+  width: 19px;
+  height: 19px;
+}
+
 .hero {
   position: relative;
   overflow: hidden;
