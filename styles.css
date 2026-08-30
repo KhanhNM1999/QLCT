@@ -738,6 +738,49 @@ button:disabled {
   background: rgba(239, 248, 244, 0.9);
 }
 
+.error-line {
+  color: var(--red);
+  background: rgba(255, 48, 79, 0.08);
+}
+
+.sync-state-card {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(209, 222, 235, 0.95);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f6fbfc 100%);
+}
+
+.sync-state-card.error {
+  border-color: rgba(255, 48, 79, 0.22);
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 48, 79, 0.05) 100%);
+}
+
+.inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 10px;
+}
+
+.inline-field .icon-only {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding: 0;
+}
+
+.inline-field .icon-only svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sync-toggle {
+  justify-content: start;
+}
+
 .category-select,
 .debt-overview-card,
 .debt-progress-row {

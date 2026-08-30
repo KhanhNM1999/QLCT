@@ -5,6 +5,8 @@ const LEGACY_STORAGE_KEYS = [
   "luongTietKiem.preview.v2",
   "luongTietKiem.preview.v1"
 ]
+const SUPABASE_TABLE = "qlct_app_states"
+const CLOUD_SYNC_DELAY = 900
 
 const emptyState = {
   activeTab: "dashboard",
@@ -20,7 +22,15 @@ const emptyState = {
     lastBackupAt: "",
     lastRecoveryKeyAt: "",
     persistentStorage: false,
-    persistentAskedAt: ""
+    persistentAskedAt: "",
+    supabaseEnabled: false,
+    supabaseUrl: "",
+    supabaseAnonKey: "",
+    supabaseSyncId: "",
+    supabaseLastSyncedAt: "",
+    supabaseCloudUpdatedAt: "",
+    supabaseSyncStatus: "off",
+    supabaseSyncError: ""
   },
   salary: null,
   payments: [],
@@ -217,6 +227,9 @@ const DebtEngine = {
 
 let state = loadState()
 let touchStartY = 0
+let cloudSyncTimer = null
+let cloudSyncBooted = false
+let suppressCloudSync = false
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -344,8 +357,192 @@ function normalizeDebtPaymentRecord(record) {
   }
 }
 
-function saveState() {
+function saveState(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  if (!options.skipCloud && cloudSyncBooted && !suppressCloudSync) scheduleCloudSync()
+}
+
+function supabaseConfig() {
+  const dataSafety = state.dataSafety || {}
+  return {
+    enabled: Boolean(dataSafety.supabaseEnabled),
+    url: String(dataSafety.supabaseUrl || "").trim().replace(/\/+$/g, ""),
+    anonKey: String(dataSafety.supabaseAnonKey || "").trim(),
+    syncId: String(dataSafety.supabaseSyncId || "").trim()
+  }
+}
+
+function hasSupabaseConfig() {
+  const config = supabaseConfig()
+  return Boolean(config.enabled && config.url && config.anonKey && config.syncId)
+}
+
+function publicDataSafety(dataSafety = {}) {
+  const {
+    supabaseUrl,
+    supabaseAnonKey,
+    supabaseSyncStatus,
+    supabaseSyncError,
+    ...safeDataSafety
+  } = dataSafety
+  return safeDataSafety
+}
+
+function cloudPayload() {
+  const payload = clone(state)
+  payload.dataSafety = publicDataSafety(payload.dataSafety || {})
+  return payload
+}
+
+async function sha256Hex(value) {
+  if (!globalThis.crypto?.subtle) return String(value)
+  const bytes = new TextEncoder().encode(value)
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes)
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("")
+}
+
+function supabaseRpcUrl(config, name) {
+  return `${config.url}/rest/v1/rpc/${name}`
+}
+
+async function supabaseFetch(config, endpoint, options = {}) {
+  const response = await fetch(endpoint, {
+    ...options,
+    headers: {
+      apikey: config.anonKey,
+      Authorization: `Bearer ${config.anonKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => "")
+    throw new Error(text || `Supabase HTTP ${response.status}`)
+  }
+  if (response.status === 204) return null
+  const text = await response.text()
+  return text ? JSON.parse(text) : null
+}
+
+function setCloudSyncStatus(status, error = "") {
+  const previousSuppress = suppressCloudSync
+  suppressCloudSync = true
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    supabaseSyncStatus: status,
+    supabaseSyncError: error
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  if (state.activeTab === "settings") render()
+  suppressCloudSync = previousSuppress
+}
+
+function scheduleCloudSync() {
+  if (!hasSupabaseConfig()) return
+  clearTimeout(cloudSyncTimer)
+  cloudSyncTimer = setTimeout(() => {
+    pushCloudState(true)
+  }, CLOUD_SYNC_DELAY)
+}
+
+async function fetchCloudRecord() {
+  const config = supabaseConfig()
+  if (!hasSupabaseConfig()) throw new Error("Thiếu cấu hình Supabase")
+  const rows = await supabaseFetch(config, supabaseRpcUrl(config, "qlct_get_state"), {
+    method: "POST",
+    body: JSON.stringify({ sync_secret: config.syncId })
+  })
+  return Array.isArray(rows) && rows.length ? rows[0] : null
+}
+
+async function pushCloudState(silent = false) {
+  if (!hasSupabaseConfig()) return false
+  clearTimeout(cloudSyncTimer)
+  try {
+    if (!silent) setCloudSyncStatus("syncing")
+    const config = supabaseConfig()
+    const now = new Date().toISOString()
+    await supabaseFetch(config, supabaseRpcUrl(config, "qlct_upsert_state"), {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        sync_secret: config.syncId,
+        app_state: cloudPayload(),
+        saved_at: now
+      })
+    })
+    state.dataSafety = {
+      ...emptyState.dataSafety,
+      ...(state.dataSafety || {}),
+      supabaseLastSyncedAt: now,
+      supabaseCloudUpdatedAt: now,
+      supabaseSyncStatus: "synced",
+      supabaseSyncError: ""
+    }
+    saveState({ skipCloud: true })
+    if (!silent) showToast("Đã đẩy dữ liệu lên Supabase")
+    if (state.activeTab === "settings") render()
+    return true
+  } catch (error) {
+    setCloudSyncStatus("error", friendlySupabaseError(error))
+    if (!silent) showToast("Không sync được Supabase")
+    return false
+  }
+}
+
+async function pullCloudState(silent = false) {
+  if (!hasSupabaseConfig()) return false
+  clearTimeout(cloudSyncTimer)
+  try {
+    if (!silent) setCloudSyncStatus("syncing")
+    const record = await fetchCloudRecord()
+    if (!record?.state) {
+      if (!silent) showToast("Cloud chưa có dữ liệu, đang tạo bản đầu")
+      return pushCloudState(silent)
+    }
+    const currentConfig = supabaseConfig()
+    const pulled = normalizeState(record.state)
+    pulled.dataSafety = {
+      ...emptyState.dataSafety,
+      ...(pulled.dataSafety || {}),
+      supabaseEnabled: true,
+      supabaseUrl: currentConfig.url,
+      supabaseAnonKey: currentConfig.anonKey,
+      supabaseSyncId: currentConfig.syncId,
+      supabaseLastSyncedAt: new Date().toISOString(),
+      supabaseCloudUpdatedAt: record.updated_at || "",
+      supabaseSyncStatus: "synced",
+      supabaseSyncError: ""
+    }
+    suppressCloudSync = true
+    state = pulled
+    saveState({ skipCloud: true })
+    render()
+    suppressCloudSync = false
+    if (!silent) showToast("Đã kéo dữ liệu từ Supabase")
+    return true
+  } catch (error) {
+    suppressCloudSync = false
+    setCloudSyncStatus("error", friendlySupabaseError(error))
+    if (!silent) showToast("Không kéo được Supabase")
+    return false
+  }
+}
+
+async function initCloudSync() {
+  cloudSyncBooted = true
+  if (!hasSupabaseConfig()) return
+  await pullCloudState(true)
+}
+
+function friendlySupabaseError(error) {
+  const message = String(error?.message || error || "")
+  if (message.includes("Failed to fetch")) return "Không kết nối được Supabase"
+  if (message.includes("JWT")) return "Anon key không hợp lệ"
+  if (message.includes(SUPABASE_TABLE)) return `Chưa tạo bảng ${SUPABASE_TABLE}`
+  if (message.length > 110) return `${message.slice(0, 107)}...`
+  return message || "Lỗi Supabase"
 }
 
 async function refreshStorageStatus() {
@@ -1092,6 +1289,41 @@ function checklistPayments() {
   }))
 }
 
+function iconSvg(name) {
+  const paths = {
+    bank: '<path d="M3 10h18L12 4 3 10Z"/><path d="M5 10v8M9 10v8M15 10v8M19 10v8"/><path d="M4 18h16M3 21h18"/>',
+    bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/>',
+    bolt: '<path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z"/>',
+    calendar: '<path d="M8 2v4M16 2v4"/><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/>',
+    card: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',
+    chart: '<path d="M4 19V5"/><path d="M4 19h16"/><path d="m8 15 3-4 3 2 4-7"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    coin: '<circle cx="12" cy="12" r="9"/><path d="M9 10.2c0-1.2 1.2-2.2 3-2.2s3 1 3 2.2c0 2.8-6 1.4-6 4.2 0 1.3 1.2 2.3 3 2.3s3-1 3-2.3"/>',
+    download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+    home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+    house: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M16 7l2 2M14 9l2 2"/>',
+    laptop: '<path d="M5 5h14v10H5z"/><path d="M3 19h18"/>',
+    list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>',
+    piggy: '<path d="M5 12c0-3 3-5 7-5 3 0 5 1 6 3h2v5h-2c-.5 1-1.3 1.8-2.4 2.3L16 21h-3l-.5-2H9.8L9 21H6l.7-3.2A6.2 6.2 0 0 1 5 12Z"/><path d="M8 8 6 5M15 10h.01"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    refresh: '<path d="M20 12a8 8 0 0 1-14 5"/><path d="M4 17h5v-5"/><path d="M4 12a8 8 0 0 1 14-5"/><path d="M20 7h-5v5"/>',
+    settings: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.8 1.8 0 0 0 15 19.4a1.8 1.8 0 0 0-1 .6 1.8 1.8 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.8 1.8 0 0 0 8.6 19.4a1.8 1.8 0 0 0-1.98.36l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.09A1.8 1.8 0 0 0 4.6 8.6a1.8 1.8 0 0 0-.36-1.98l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.8 1.8 0 0 0 9 4.6a1.8 1.8 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.09A1.8 1.8 0 0 0 15.4 4.6a1.8 1.8 0 0 0 1.98-.36l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.8 1.8 0 0 0 19.4 9c.3.4.8.7 1.6.8H21a2 2 0 1 1 0 4h-.09A1.8 1.8 0 0 0 19.4 15Z"/>',
+    shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v6M14 11v6"/>',
+    upload: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    wallet: '<path d="M4 7h15a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h13"/><path d="M16 13h5"/><path d="M18 13h.01"/>',
+    wifi: '<path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><path d="M12 20h.01"/>'
+  }
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.info}</svg>`
+}
+
 function categoryIcon(paymentOrCategory) {
   if (paymentOrCategory && typeof paymentOrCategory === "object") {
     const category = categoryForPayment(paymentOrCategory)
@@ -1774,10 +2006,21 @@ function recoveryKeyText() {
   return state.dataSafety?.lastRecoveryKeyAt ? `Tạo lần cuối ${formatDate(eventDate(state.dataSafety.lastRecoveryKeyAt))}` : "Chưa tạo mã"
 }
 
+function supabaseSyncText() {
+  const dataSafety = state.dataSafety || {}
+  if (!dataSafety.supabaseEnabled) return "Chưa bật cloud sync"
+  if (!dataSafety.supabaseUrl || !dataSafety.supabaseAnonKey || !dataSafety.supabaseSyncId) return "Thiếu cấu hình Supabase"
+  if (dataSafety.supabaseSyncStatus === "syncing") return "Đang sync Supabase"
+  if (dataSafety.supabaseSyncStatus === "error") return `Lỗi: ${dataSafety.supabaseSyncError || "Không sync được"}`
+  if (dataSafety.supabaseLastSyncedAt) return `Đã sync ${formatDate(eventDate(dataSafety.supabaseLastSyncedAt))}`
+  return "Đã bật, chờ sync lần đầu"
+}
+
 function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
+      ${settingsRow(iconSvg("upload"), "Supabase Cloud Sync", supabaseSyncText(), `<button class="link" data-action="open-supabase-sync">Mở</button>`)}
       ${settingsRow(iconSvg("shield"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
       ${settingsRow(iconSvg("key"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
       ${settingsRow(iconSvg("upload"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
@@ -1792,8 +2035,8 @@ function renderSettings() {
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
       <div class="list-icon blue">${iconSvg("info")}</div>
       <div>
-        <strong>Dữ liệu nằm trên máy bạn</strong>
-        <div class="desc">App web/PWA lưu dữ liệu trên thiết bị đang dùng. Dùng Export JSON định kỳ để giữ bản sao và Import lại khi đổi máy.</div>
+        <strong>${state.dataSafety?.supabaseEnabled ? "Dữ liệu sync qua Supabase" : "Dữ liệu nằm trên máy bạn"}</strong>
+        <div class="desc">${state.dataSafety?.supabaseEnabled ? "App vẫn lưu local để dùng nhanh, đồng thời sync snapshot lên Supabase khi có thay đổi." : "App web/PWA lưu dữ liệu trên thiết bị đang dùng. Có thể bật Supabase để đồng bộ nhiều máy."}</div>
       </div>
     </section>
   `
@@ -1810,6 +2053,117 @@ function settingsRow(icon, title, desc, action) {
       ${action}
     </div>
   `
+}
+
+function openSupabaseSyncModal() {
+  const config = supabaseConfig()
+  openModal(`
+    <h2>Supabase Cloud Sync</h2>
+    <form id="supabaseSyncForm" class="form">
+      <div class="sync-state-card ${state.dataSafety?.supabaseSyncStatus === "error" ? "error" : ""}">
+        <div class="list-icon blue">${iconSvg("upload")}</div>
+        <div>
+          <strong>${escapeHtml(supabaseSyncText())}</strong>
+          <div class="desc">Dùng một mã sync bí mật để đồng bộ snapshot giữa các thiết bị.</div>
+        </div>
+      </div>
+      <label class="check-option sync-toggle">
+        <input name="enabled" type="checkbox" ${config.enabled ? "checked" : ""} />
+        <span>Bật Supabase sync</span>
+      </label>
+      <div class="field">
+        <label>Supabase Project URL</label>
+        <input name="url" placeholder="https://xxxxx.supabase.co" value="${escapeHtml(config.url)}" />
+      </div>
+      <div class="field">
+        <label>Anon public key</label>
+        <input name="anonKey" type="password" autocomplete="off" placeholder="eyJhbGciOi..." value="${escapeHtml(config.anonKey)}" />
+      </div>
+      <div class="field">
+        <label>Mã sync bí mật</label>
+        <div class="inline-field">
+          <input name="syncId" autocomplete="off" placeholder="Tự tạo hoặc nhập cùng mã trên máy khác" value="${escapeHtml(config.syncId)}" />
+          <button type="button" class="ghost icon-only" data-action="generate-sync-id" aria-label="Tạo mã sync">${iconSvg("refresh")}</button>
+        </div>
+      </div>
+      ${state.dataSafety?.supabaseSyncError ? `<div class="bank-line error-line">${escapeHtml(state.dataSafety.supabaseSyncError)}</div>` : ""}
+      <div class="form-actions stack-actions">
+        <button type="submit" class="primary">Lưu & sync</button>
+        <button type="button" class="ghost" data-action="test-supabase">Kiểm tra kết nối</button>
+        <button type="button" class="ghost" data-action="pull-supabase">Kéo cloud về máy</button>
+        <button type="button" class="ghost" data-action="push-supabase">Đẩy máy lên cloud</button>
+        <button type="button" class="ghost" data-close>Đóng</button>
+      </div>
+    </form>
+  `)
+
+  const form = document.getElementById("supabaseSyncForm")
+  const saveConfigFromForm = () => {
+    const data = new FormData(form)
+    const enabled = data.get("enabled") === "on"
+    const syncId = String(data.get("syncId") || "").trim()
+    state.dataSafety = {
+      ...emptyState.dataSafety,
+      ...(state.dataSafety || {}),
+      supabaseEnabled: enabled,
+      supabaseUrl: String(data.get("url") || "").trim().replace(/\/+$/g, ""),
+      supabaseAnonKey: String(data.get("anonKey") || "").trim(),
+      supabaseSyncId: syncId,
+      supabaseSyncStatus: enabled ? "idle" : "off",
+      supabaseSyncError: ""
+    }
+    saveState({ skipCloud: true })
+    return enabled
+  }
+
+  form.querySelector("[data-action='generate-sync-id']").onclick = () => {
+    form.elements.syncId.value = `qlct-${newId()}`
+  }
+
+  form.querySelector("[data-action='test-supabase']").onclick = async () => {
+    saveConfigFromForm()
+    try {
+      const record = await fetchCloudRecord()
+      showToast(record ? "Kết nối OK, đã thấy dữ liệu cloud" : "Kết nối OK, cloud đang trống")
+      setCloudSyncStatus(record ? "synced" : "idle")
+    } catch (error) {
+      setCloudSyncStatus("error", friendlySupabaseError(error))
+      showToast("Không kết nối được Supabase")
+    }
+  }
+
+  form.querySelector("[data-action='pull-supabase']").onclick = async () => {
+    if (!saveConfigFromForm()) {
+      showToast("Bật Supabase sync trước")
+      return
+    }
+    await pullCloudState(false)
+  }
+
+  form.querySelector("[data-action='push-supabase']").onclick = async () => {
+    if (!saveConfigFromForm()) {
+      showToast("Bật Supabase sync trước")
+      return
+    }
+    await pushCloudState(false)
+  }
+
+  form.onsubmit = async event => {
+    event.preventDefault()
+    if (!saveConfigFromForm()) {
+      showToast("Đã tắt Supabase sync")
+      closeModal()
+      render()
+      return
+    }
+    if (!hasSupabaseConfig()) {
+      showToast("Nhập đủ URL, anon key và mã sync")
+      render()
+      return
+    }
+    const synced = await pullCloudState(false)
+    if (synced) closeModal()
+  }
 }
 
 function bindScreenActions() {
@@ -1830,6 +2184,10 @@ function bindScreenActions() {
 
   document.querySelectorAll("[data-action='open-bank-directory']").forEach(button => {
     button.onclick = openBankDirectoryModal
+  })
+
+  document.querySelectorAll("[data-action='open-supabase-sync']").forEach(button => {
+    button.onclick = openSupabaseSyncModal
   })
 
   document.querySelectorAll("[data-action='edit-profile']").forEach(button => {
@@ -3426,7 +3784,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=31").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=32").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
@@ -3434,5 +3792,6 @@ if ("serviceWorker" in navigator) {
 installScrollGuard()
 refreshStorageStatus()
 render()
+initCloudSync()
 
 
