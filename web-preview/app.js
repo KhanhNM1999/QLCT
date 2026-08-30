@@ -34,6 +34,7 @@ const emptyState = {
     supabaseSyncStatus: "off",
     supabaseSyncError: "",
     supabaseUserId: "",
+    supabaseUsername: "",
     supabaseUserEmail: "",
     supabaseAccessToken: "",
     supabaseRefreshToken: "",
@@ -383,6 +384,7 @@ function supabaseSession() {
   const dataSafety = state.dataSafety || {}
   return {
     userId: String(dataSafety.supabaseUserId || ""),
+    username: String(dataSafety.supabaseUsername || ""),
     email: String(dataSafety.supabaseUserEmail || ""),
     accessToken: String(dataSafety.supabaseAccessToken || ""),
     refreshToken: String(dataSafety.supabaseRefreshToken || ""),
@@ -396,8 +398,22 @@ function isSupabaseSignedIn() {
 }
 
 function accountDisplayName() {
-  const email = supabaseSession().email
-  return email ? email.split("@")[0] : "Bạn"
+  const session = supabaseSession()
+  if (session.username) return session.username
+  if (session.email) return session.email.split("@")[0]
+  return "Bạn"
+}
+
+function normalizeUsername(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "")
+    .slice(0, 32)
+}
+
+function usernameToAuthEmail(username) {
+  return `${normalizeUsername(username)}@qlct.local`
 }
 
 function hasSupabaseConfig() {
@@ -511,6 +527,7 @@ function saveSupabaseSession(data = {}) {
     supabaseUrl: supabaseConfig().url,
     supabaseAnonKey: supabaseConfig().anonKey,
     supabaseUserId: user.id || state.dataSafety?.supabaseUserId || "",
+    supabaseUsername: user.user_metadata?.username || state.dataSafety?.supabaseUsername || accountDisplayName(),
     supabaseUserEmail: user.email || state.dataSafety?.supabaseUserEmail || "",
     supabaseAccessToken: data.access_token || state.dataSafety?.supabaseAccessToken || "",
     supabaseRefreshToken: data.refresh_token || state.dataSafety?.supabaseRefreshToken || "",
@@ -526,6 +543,7 @@ function clearSupabaseSession() {
     ...emptyState.dataSafety,
     ...(state.dataSafety || {}),
     supabaseUserId: "",
+    supabaseUsername: "",
     supabaseUserEmail: "",
     supabaseAccessToken: "",
     supabaseRefreshToken: "",
@@ -535,15 +553,27 @@ function clearSupabaseSession() {
   saveState({ skipCloud: true })
 }
 
-async function signUpSupabase(email, password) {
-  const data = await supabaseAuthRequest("signup", { email, password })
-  if (data?.access_token) saveSupabaseSession(data)
+async function signUpSupabase(username, password) {
+  const normalized = normalizeUsername(username)
+  const data = await supabaseAuthRequest("signup", {
+    email: usernameToAuthEmail(normalized),
+    password,
+    data: { username: normalized }
+  })
+  if (data?.access_token) {
+    saveSupabaseSession(data)
+    state.dataSafety.supabaseUsername = normalized
+    saveState({ skipCloud: true })
+  }
   return data
 }
 
-async function signInSupabase(email, password) {
-  const data = await supabaseAuthRequest("token?grant_type=password", { email, password })
+async function signInSupabase(username, password) {
+  const normalized = normalizeUsername(username)
+  const data = await supabaseAuthRequest("token?grant_type=password", { email: usernameToAuthEmail(normalized), password })
   saveSupabaseSession(data)
+  state.dataSafety.supabaseUsername = normalized
+  saveState({ skipCloud: true })
   return data
 }
 
@@ -663,6 +693,7 @@ async function pullCloudState(silent = false) {
       supabaseAnonKey: currentConfig.anonKey,
       supabaseSyncId: currentConfig.syncId,
       supabaseUserId: state.dataSafety?.supabaseUserId || "",
+      supabaseUsername: state.dataSafety?.supabaseUsername || "",
       supabaseUserEmail: state.dataSafety?.supabaseUserEmail || "",
       supabaseAccessToken: state.dataSafety?.supabaseAccessToken || "",
       supabaseRefreshToken: state.dataSafety?.supabaseRefreshToken || "",
@@ -1560,12 +1591,12 @@ function renderAuthScreen() {
       <div>
         <p class="eyebrow">QLCT</p>
         <h1 class="title">Đăng nhập</h1>
-        <p class="subtitle">Dữ liệu khoản phải trả, lương và checklist sẽ đi theo tài khoản của bạn.</p>
+        <p class="subtitle">Dữ liệu khoản phải trả, lương và checklist sẽ đi theo username của bạn.</p>
       </div>
       <form id="authForm" class="card auth-card">
         <div class="field">
-          <label>Email</label>
-          <input name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <label>Username</label>
+          <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Ví dụ: khanh" required />
         </div>
         <div class="field">
           <label>Mật khẩu</label>
@@ -1576,7 +1607,7 @@ function renderAuthScreen() {
       </form>
       <div class="auth-note">
         <strong>App trắng sau đăng ký</strong>
-        <span>Sau khi đăng nhập, app tự tạo dữ liệu cloud riêng cho tài khoản nếu chưa có dữ liệu trước đó.</span>
+        <span>Sau khi đăng nhập, app tự tạo dữ liệu cloud riêng cho username nếu chưa có dữ liệu trước đó.</span>
       </div>
     </section>
   `
@@ -1586,24 +1617,24 @@ function bindAuthActions() {
   const form = document.getElementById("authForm")
   if (!form) return
   const values = () => ({
-    email: String(form.elements.email.value || "").trim(),
+    username: normalizeUsername(form.elements.username.value),
     password: String(form.elements.password.value || "")
   })
   const submitAuth = async mode => {
-    const { email, password } = values()
-    if (!email || password.length < 6) {
-      showToast("Nhập email và mật khẩu từ 6 ký tự")
+    const { username, password } = values()
+    if (username.length < 3 || password.length < 6) {
+      showToast("Username từ 3 ký tự, mật khẩu từ 6 ký tự")
       return
     }
     try {
       if (mode === "signup") {
-        const data = await signUpSupabase(email, password)
+        const data = await signUpSupabase(username, password)
         if (!data?.access_token) {
-          showToast("Đã đăng ký, kiểm tra email xác nhận")
+          showToast("Đã đăng ký, cần tắt xác nhận email trong Supabase")
           return
         }
       } else {
-        await signInSupabase(email, password)
+        await signInSupabase(username, password)
       }
       await pullCloudState(false)
       showToast(mode === "signup" ? "Đã tạo tài khoản" : "Đã đăng nhập")
@@ -2264,11 +2295,11 @@ function renderSettings() {
 }
 
 function accountSettingsText() {
-  const email = supabaseSession().email
+  const username = accountDisplayName()
   if (state.dataSafety?.supabaseSyncStatus === "error") return `Lỗi sync: ${state.dataSafety.supabaseSyncError || "Không đồng bộ được"}`
-  if (state.dataSafety?.supabaseSyncStatus === "syncing") return `${email || "Tài khoản"} · đang đồng bộ`
-  if (state.dataSafety?.supabaseLastSyncedAt) return `${email || "Tài khoản"} · sync ${formatDate(eventDate(state.dataSafety.supabaseLastSyncedAt))}`
-  return email || "Đã đăng nhập"
+  if (state.dataSafety?.supabaseSyncStatus === "syncing") return `${username || "Tài khoản"} · đang đồng bộ`
+  if (state.dataSafety?.supabaseLastSyncedAt) return `${username || "Tài khoản"} · sync ${formatDate(eventDate(state.dataSafety.supabaseLastSyncedAt))}`
+  return username || "Đã đăng nhập"
 }
 
 function settingsRow(icon, title, desc, action) {
@@ -2292,7 +2323,7 @@ function openAccountModal() {
       <div class="sync-state-card ${state.dataSafety?.supabaseSyncStatus === "error" ? "error" : ""}">
         <div class="list-icon green">${iconSvg("user")}</div>
         <div>
-          <strong>${escapeHtml(session.email || "Tài khoản")}</strong>
+          <strong>${escapeHtml(session.username || accountDisplayName())}</strong>
           <div class="desc">${escapeHtml(accountSettingsText())}</div>
         </div>
       </div>
@@ -3935,7 +3966,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=35").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=36").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
