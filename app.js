@@ -395,6 +395,11 @@ function isSupabaseSignedIn() {
   return Boolean(session.userId && session.accessToken)
 }
 
+function accountDisplayName() {
+  const email = supabaseSession().email
+  return email ? email.split("@")[0] : "Bạn"
+}
+
 function hasSupabaseConfig() {
   const config = supabaseConfig()
   return Boolean(config.enabled && config.url && config.anonKey && (isSupabaseSignedIn() || config.syncId))
@@ -632,6 +637,19 @@ async function pullCloudState(silent = false) {
     if (!silent) setCloudSyncStatus("syncing")
     const record = await fetchCloudRecord()
     if (!record?.state) {
+      if (isSupabaseSignedIn()) {
+        const currentDataSafety = { ...emptyState.dataSafety, ...(state.dataSafety || {}) }
+        state = normalizeState({
+          ...clone(emptyState),
+          activeTab: "dashboard",
+          selectedMonth: currentMonthKey(),
+          profile: {
+            name: accountDisplayName(),
+            createdAt: new Date().toISOString()
+          },
+          dataSafety: currentDataSafety
+        })
+      }
       if (!silent) showToast("Cloud chưa có dữ liệu, đang tạo bản đầu")
       return pushCloudState(silent)
     }
@@ -1503,12 +1521,20 @@ function statusHtml(payment) {
 
 function render() {
   saveState()
-  const isOnboarding = !state.profile?.name
+  const needsAuth = !isSupabaseSignedIn()
+  const isOnboarding = !needsAuth && !state.profile?.name
+  document.body.classList.toggle("is-auth", needsAuth)
   document.body.classList.toggle("is-onboarding", isOnboarding)
   renderTabIcons()
   document.querySelectorAll(".tab").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.tab === state.activeTab)
   })
+
+  if (needsAuth) {
+    document.getElementById("app").innerHTML = renderAuthScreen()
+    bindAuthActions()
+    return
+  }
 
   if (isOnboarding) {
     document.getElementById("app").innerHTML = renderOnboarding()
@@ -1526,6 +1552,72 @@ function render() {
 
   document.getElementById("app").innerHTML = routes[state.activeTab]()
   bindScreenActions()
+}
+
+function renderAuthScreen() {
+  return `
+    <section class="auth-screen">
+      <div>
+        <p class="eyebrow">QLCT</p>
+        <h1 class="title">Đăng nhập</h1>
+        <p class="subtitle">Dữ liệu khoản phải trả, lương và checklist sẽ đi theo tài khoản của bạn.</p>
+      </div>
+      <form id="authForm" class="card auth-card">
+        <div class="field">
+          <label>Email</label>
+          <input name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+        </div>
+        <div class="field">
+          <label>Mật khẩu</label>
+          <input name="password" type="password" autocomplete="current-password" placeholder="Tối thiểu 6 ký tự" required />
+        </div>
+        <button class="primary" data-auth-submit="login">Đăng nhập</button>
+        <button type="button" class="ghost" data-action="signup-auth">Tạo tài khoản mới</button>
+      </form>
+      <div class="auth-note">
+        <strong>App trắng sau đăng ký</strong>
+        <span>Sau khi đăng nhập, app tự tạo dữ liệu cloud riêng cho tài khoản nếu chưa có dữ liệu trước đó.</span>
+      </div>
+    </section>
+  `
+}
+
+function bindAuthActions() {
+  const form = document.getElementById("authForm")
+  if (!form) return
+  const values = () => ({
+    email: String(form.elements.email.value || "").trim(),
+    password: String(form.elements.password.value || "")
+  })
+  const submitAuth = async mode => {
+    const { email, password } = values()
+    if (!email || password.length < 6) {
+      showToast("Nhập email và mật khẩu từ 6 ký tự")
+      return
+    }
+    try {
+      if (mode === "signup") {
+        const data = await signUpSupabase(email, password)
+        if (!data?.access_token) {
+          showToast("Đã đăng ký, kiểm tra email xác nhận")
+          return
+        }
+      } else {
+        await signInSupabase(email, password)
+      }
+      await pullCloudState(false)
+      showToast(mode === "signup" ? "Đã tạo tài khoản" : "Đã đăng nhập")
+      render()
+    } catch (error) {
+      setCloudSyncStatus("error", friendlySupabaseError(error))
+      showToast(mode === "signup" ? "Không đăng ký được" : "Không đăng nhập được")
+    }
+  }
+  form.onsubmit = event => {
+    event.preventDefault()
+    submitAuth("login")
+  }
+  form.querySelector("[data-action='signup-auth']").onclick = () => submitAuth("signup")
 }
 
 function renderTabIcons() {
@@ -1611,10 +1703,6 @@ function renderOnboarding() {
         </div>
         <button class="primary">Bắt đầu dùng app</button>
       </form>
-      <button type="button" class="primary cloud-login-entry" data-action="open-supabase-sync">
-        ${iconSvg("user")}
-        <span>Đăng nhập / đăng ký Supabase</span>
-      </button>
       <div class="form-actions stack-actions onboarding-restore">
         <button type="button" class="ghost" data-action="restore-key">Nhập mã khôi phục dữ liệu</button>
         <button type="button" class="ghost" data-action="restore">Khôi phục dữ liệu từ backup</button>
@@ -1630,10 +1718,6 @@ function bindOnboardingActions() {
 
   document.querySelectorAll("[data-action='restore-key']").forEach(button => {
     button.onclick = openRestoreKeyModal
-  })
-
-  document.querySelectorAll("[data-action='open-supabase-sync']").forEach(button => {
-    button.onclick = openSupabaseSyncModal
   })
 
   document.getElementById("onboardingForm").onsubmit = event => {
@@ -2153,28 +2237,11 @@ function recoveryKeyText() {
   return state.dataSafety?.lastRecoveryKeyAt ? `Tạo lần cuối ${formatDate(eventDate(state.dataSafety.lastRecoveryKeyAt))}` : "Chưa tạo mã"
 }
 
-function supabaseSyncText() {
-  const dataSafety = state.dataSafety || {}
-  if (isSupabaseSignedIn()) {
-    const email = supabaseSession().email || "tài khoản Supabase"
-    if (dataSafety.supabaseSyncStatus === "error") return `Lỗi: ${dataSafety.supabaseSyncError || "Không sync được"}`
-    if (dataSafety.supabaseSyncStatus === "syncing") return `Đang sync ${email}`
-    if (dataSafety.supabaseLastSyncedAt) return `${email} · đã sync ${formatDate(eventDate(dataSafety.supabaseLastSyncedAt))}`
-    return `${email} · chờ sync lần đầu`
-  }
-  if (!dataSafety.supabaseEnabled) return "Chưa bật cloud sync"
-  if (!dataSafety.supabaseUrl || !dataSafety.supabaseAnonKey || !dataSafety.supabaseSyncId) return "Chưa đăng nhập hoặc thiếu mã sync"
-  if (dataSafety.supabaseSyncStatus === "syncing") return "Đang sync Supabase"
-  if (dataSafety.supabaseSyncStatus === "error") return `Lỗi: ${dataSafety.supabaseSyncError || "Không sync được"}`
-  if (dataSafety.supabaseLastSyncedAt) return `Đã sync ${formatDate(eventDate(dataSafety.supabaseLastSyncedAt))}`
-  return "Đã bật, chờ sync lần đầu"
-}
-
 function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
-      ${settingsRow(iconSvg(isSupabaseSignedIn() ? "user" : "upload"), "Supabase Cloud Sync", supabaseSyncText(), `<button class="link" data-action="open-supabase-sync">${isSupabaseSignedIn() ? "Quản lý" : "Đăng nhập"}</button>`)}
+      ${settingsRow(iconSvg("user"), "Tài khoản", accountSettingsText(), `<button class="link" data-action="open-account">Mở</button>`)}
       ${settingsRow(iconSvg("shield"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
       ${settingsRow(iconSvg("key"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
       ${settingsRow(iconSvg("upload"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
@@ -2189,11 +2256,19 @@ function renderSettings() {
     <section class="section info-card card" style="grid-template-columns:54px 1fr">
       <div class="list-icon blue">${iconSvg("info")}</div>
       <div>
-        <strong>${state.dataSafety?.supabaseEnabled ? "Dữ liệu sync qua Supabase" : "Dữ liệu nằm trên máy bạn"}</strong>
-        <div class="desc">${state.dataSafety?.supabaseEnabled ? "App vẫn lưu local để dùng nhanh, đồng thời sync snapshot lên Supabase khi có thay đổi." : "App web/PWA lưu dữ liệu trên thiết bị đang dùng. Có thể bật Supabase để đồng bộ nhiều máy."}</div>
+        <strong>Dữ liệu đi theo tài khoản</strong>
+        <div class="desc">App lưu nhanh trên máy và tự đồng bộ lên Supabase theo tài khoản đang đăng nhập.</div>
       </div>
     </section>
   `
+}
+
+function accountSettingsText() {
+  const email = supabaseSession().email
+  if (state.dataSafety?.supabaseSyncStatus === "error") return `Lỗi sync: ${state.dataSafety.supabaseSyncError || "Không đồng bộ được"}`
+  if (state.dataSafety?.supabaseSyncStatus === "syncing") return `${email || "Tài khoản"} · đang đồng bộ`
+  if (state.dataSafety?.supabaseLastSyncedAt) return `${email || "Tài khoản"} · sync ${formatDate(eventDate(state.dataSafety.supabaseLastSyncedAt))}`
+  return email || "Đã đăng nhập"
 }
 
 function settingsRow(icon, title, desc, action) {
@@ -2209,192 +2284,36 @@ function settingsRow(icon, title, desc, action) {
   `
 }
 
-function openSupabaseSyncModal() {
-  const config = supabaseConfig()
+function openAccountModal() {
   const session = supabaseSession()
   openModal(`
-    <h2>Supabase Cloud Sync</h2>
-    <form id="supabaseSyncForm" class="form">
+    <h2>Tài khoản</h2>
+    <div class="form">
       <div class="sync-state-card ${state.dataSafety?.supabaseSyncStatus === "error" ? "error" : ""}">
-        <div class="list-icon blue">${iconSvg("upload")}</div>
+        <div class="list-icon green">${iconSvg("user")}</div>
         <div>
-          <strong>${escapeHtml(supabaseSyncText())}</strong>
-          <div class="desc">${isSupabaseSignedIn() ? "Dữ liệu cloud được gắn với tài khoản đăng nhập này." : "Đăng nhập để dữ liệu gắn với từng người dùng app."}</div>
+          <strong>${escapeHtml(session.email || "Tài khoản")}</strong>
+          <div class="desc">${escapeHtml(accountSettingsText())}</div>
         </div>
-      </div>
-      <label class="check-option sync-toggle">
-        <input name="enabled" type="checkbox" ${config.enabled ? "checked" : ""} />
-        <span>Bật Supabase sync</span>
-      </label>
-      <section class="debt-form-section">
-        <div class="section-head compact-head"><h2>Tài khoản</h2></div>
-        ${isSupabaseSignedIn() ? `
-          <div class="auth-account-card">
-            <div class="list-icon green">${iconSvg("user")}</div>
-            <div>
-              <strong>${escapeHtml(session.email)}</strong>
-              <div class="desc">Đã đăng nhập Supabase Auth</div>
-            </div>
-          </div>
-          <button type="button" class="ghost" data-action="logout-supabase">Đăng xuất</button>
-        ` : `
-          <div class="field">
-            <label>Email</label>
-            <input name="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
-          </div>
-          <div class="field">
-            <label>Mật khẩu</label>
-            <input name="authPassword" type="password" autocomplete="current-password" placeholder="Tối thiểu 6 ký tự" />
-          </div>
-          <div class="form-actions">
-            <button type="button" class="primary" data-action="login-supabase">Đăng nhập</button>
-            <button type="button" class="ghost" data-action="signup-supabase">Đăng ký</button>
-          </div>
-        `}
-      </section>
-      <div class="field">
-        <label>Supabase Project URL</label>
-        <input name="url" placeholder="https://xxxxx.supabase.co" value="${escapeHtml(config.url)}" />
-      </div>
-      <div class="field">
-        <label>Anon public key</label>
-        <input name="anonKey" type="password" autocomplete="off" placeholder="eyJhbGciOi..." value="${escapeHtml(config.anonKey)}" />
-      </div>
-      <div class="field">
-        <label>Mã sync bí mật</label>
-        <div class="inline-field">
-          <input name="syncId" autocomplete="off" placeholder="Tự tạo hoặc nhập cùng mã trên máy khác" value="${escapeHtml(config.syncId)}" />
-          <button type="button" class="ghost icon-only" data-action="generate-sync-id" aria-label="Tạo mã sync">${iconSvg("refresh")}</button>
-        </div>
-        <small class="field-hint">Chỉ cần mã này nếu muốn dùng fallback không đăng nhập hoặc chuyển dữ liệu cũ.</small>
       </div>
       ${state.dataSafety?.supabaseSyncError ? `<div class="bank-line error-line">${escapeHtml(state.dataSafety.supabaseSyncError)}</div>` : ""}
       <div class="form-actions stack-actions">
-        <button type="submit" class="primary">Lưu & sync</button>
-        <button type="button" class="ghost" data-action="test-supabase">Kiểm tra kết nối</button>
-        <button type="button" class="ghost" data-action="pull-supabase">Kéo cloud về máy</button>
-        <button type="button" class="ghost" data-action="push-supabase">Đẩy máy lên cloud</button>
+        <button type="button" class="primary" data-action="sync-account-now">Đồng bộ ngay</button>
+        <button type="button" class="ghost red" data-action="logout-supabase">Đăng xuất</button>
         <button type="button" class="ghost" data-close>Đóng</button>
       </div>
-    </form>
+    </div>
   `)
 
-  const form = document.getElementById("supabaseSyncForm")
-  const saveConfigFromForm = () => {
-    const data = new FormData(form)
-    const enabled = data.get("enabled") === "on"
-    const syncId = String(data.get("syncId") || "").trim()
-    state.dataSafety = {
-      ...emptyState.dataSafety,
-      ...(state.dataSafety || {}),
-      supabaseEnabled: enabled,
-      supabaseUrl: String(data.get("url") || "").trim().replace(/\/+$/g, ""),
-      supabaseAnonKey: String(data.get("anonKey") || "").trim(),
-      supabaseSyncId: syncId,
-      supabaseSyncStatus: enabled ? "idle" : "off",
-      supabaseSyncError: ""
-    }
-    saveState({ skipCloud: true })
-    return enabled
+  document.querySelector("[data-action='sync-account-now']").onclick = async () => {
+    await pushCloudState(false)
   }
 
-  form.querySelector("[data-action='generate-sync-id']").onclick = () => {
-    form.elements.syncId.value = `qlct-${newId()}`
-  }
-
-  const authValues = () => ({
-    email: String(form.elements.authEmail?.value || "").trim(),
-    password: String(form.elements.authPassword?.value || "")
-  })
-
-  form.querySelector("[data-action='login-supabase']")?.addEventListener("click", async () => {
-    saveConfigFromForm()
-    const { email, password } = authValues()
-    if (!email || !password) {
-      showToast("Nhập email và mật khẩu")
-      return
-    }
-    try {
-      await signInSupabase(email, password)
-      await pullCloudState(false)
-      closeModal()
-    } catch (error) {
-      setCloudSyncStatus("error", friendlySupabaseError(error))
-      showToast("Không đăng nhập được")
-    }
-  })
-
-  form.querySelector("[data-action='signup-supabase']")?.addEventListener("click", async () => {
-    saveConfigFromForm()
-    const { email, password } = authValues()
-    if (!email || password.length < 6) {
-      showToast("Nhập email và mật khẩu từ 6 ký tự")
-      return
-    }
-    try {
-      const data = await signUpSupabase(email, password)
-      if (data?.access_token) {
-        await pushCloudState(false)
-        closeModal()
-      } else {
-        showToast("Đã đăng ký, kiểm tra email xác nhận")
-      }
-    } catch (error) {
-      setCloudSyncStatus("error", friendlySupabaseError(error))
-      showToast("Không đăng ký được")
-    }
-  })
-
-  form.querySelector("[data-action='logout-supabase']")?.addEventListener("click", async () => {
+  document.querySelector("[data-action='logout-supabase']").onclick = async () => {
     await signOutSupabase()
     showToast("Đã đăng xuất Supabase")
     closeModal()
     render()
-  })
-
-  form.querySelector("[data-action='test-supabase']").onclick = async () => {
-    saveConfigFromForm()
-    try {
-      const record = await fetchCloudRecord()
-      showToast(record ? "Kết nối OK, đã thấy dữ liệu cloud" : "Kết nối OK, cloud đang trống")
-      setCloudSyncStatus(record ? "synced" : "idle")
-    } catch (error) {
-      setCloudSyncStatus("error", friendlySupabaseError(error))
-      showToast("Không kết nối được Supabase")
-    }
-  }
-
-  form.querySelector("[data-action='pull-supabase']").onclick = async () => {
-    if (!saveConfigFromForm()) {
-      showToast("Bật Supabase sync trước")
-      return
-    }
-    await pullCloudState(false)
-  }
-
-  form.querySelector("[data-action='push-supabase']").onclick = async () => {
-    if (!saveConfigFromForm()) {
-      showToast("Bật Supabase sync trước")
-      return
-    }
-    await pushCloudState(false)
-  }
-
-  form.onsubmit = async event => {
-    event.preventDefault()
-    if (!saveConfigFromForm()) {
-      showToast("Đã tắt Supabase sync")
-      closeModal()
-      render()
-      return
-    }
-    if (!hasSupabaseConfig()) {
-      showToast("Đăng nhập hoặc nhập mã sync")
-      render()
-      return
-    }
-    const synced = await pullCloudState(false)
-    if (synced) closeModal()
   }
 }
 
@@ -2418,8 +2337,8 @@ function bindScreenActions() {
     button.onclick = openBankDirectoryModal
   })
 
-  document.querySelectorAll("[data-action='open-supabase-sync']").forEach(button => {
-    button.onclick = openSupabaseSyncModal
+  document.querySelectorAll("[data-action='open-account']").forEach(button => {
+    button.onclick = openAccountModal
   })
 
   document.querySelectorAll("[data-action='edit-profile']").forEach(button => {
@@ -4016,7 +3935,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=34").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=35").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
