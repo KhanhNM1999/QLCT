@@ -144,6 +144,77 @@ const sampleState = {
   ]
 }
 
+const PAYMENT_CATEGORIES = [
+  ["housing", "🏠", "Nhà ở", "green", ["Tiền thuê nhà / tiền trọ", "Phí dịch vụ / quản lý", "Tiền điện", "Tiền nước", "Internet / Wi-Fi", "Phí gửi xe", "Gas / nhiên liệu sinh hoạt", "Sửa chữa phòng / nhà", "Mua đồ dùng phòng trọ", "Chuyển nhà / đặt cọc nhà", "Khoản nhà ở khác"]],
+  ["food", "🍜", "Ăn uống", "orange", ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ / siêu thị", "Đồ ăn đặt giao", "Cà phê / trà sữa", "Ăn ngoài / nhà hàng", "Đồ ăn vặt", "Nước uống", "Tiệc / liên hoan", "Khoản ăn uống khác"]],
+  ["transport", "🛵", "Đi lại", "blue", ["Xăng xe", "Sạc xe điện", "Gửi xe", "Grab / Be / Taxi", "Xe buýt / Metro", "Vé tàu / xe khách", "Vé máy bay", "Bảo dưỡng xe", "Sửa xe", "Rửa xe", "Bảo hiểm xe", "Phí đường bộ / cầu đường", "Phạt giao thông", "Khoản đi lại khác"]],
+  ["tech", "📱", "Điện thoại & công nghệ", "blue", ["Cước điện thoại", "4G / 5G", "Mua điện thoại", "Trả góp điện thoại", "Mua máy tính / laptop", "Trả góp máy tính / laptop", "Phụ kiện công nghệ", "Sửa điện thoại / máy tính", "iCloud", "Google One / lưu trữ đám mây", "Phần mềm / ứng dụng", "Khoản công nghệ khác"]],
+  ["credit_card", "💳", "Thẻ tín dụng", "purple", ["Thanh toán dư nợ thẻ tín dụng", "Thanh toán tối thiểu thẻ tín dụng", "Trả góp qua thẻ tín dụng", "Phí thường niên", "Phí chậm thanh toán", "Phí chuyển đổi trả góp", "Lãi thẻ tín dụng", "Phí thẻ khác"]],
+  ["loan", "💸", "Vay & nợ", "purple", ["Vay ngân hàng", "Vay tiêu dùng", "Vay tín chấp", "Vay thế chấp", "Vay công ty tài chính", "Vay qua ứng dụng", "Vay người thân", "Vay bạn bè", "Nợ cá nhân khác", "Trả gốc khoản vay", "Trả lãi khoản vay", "Trả cả gốc và lãi", "Phí khoản vay", "Khoản nợ khác"]],
+  ["installment", "🛍️", "Trả góp", "purple", ["Trả góp điện thoại", "Trả góp laptop / máy tính", "Trả góp xe máy", "Trả góp ô tô", "Trả góp đồ điện tử", "Trả góp đồ gia dụng", "Trả góp mua sắm", "Buy Now Pay Later / Mua trước trả sau", "Shopee SPayLater", "Kredivo", "Home Credit", "FE Credit", "HD SAISON", "Trả góp khác"]],
+  ["banking", "🏦", "Tài chính & ngân hàng", "green", ["Phí tài khoản ngân hàng", "Phí chuyển tiền", "Phí SMS Banking", "Phí dịch vụ ngân hàng", "Phí duy trì tài khoản", "Phí rút tiền", "Lãi / phí thấu chi", "Phí tài chính khác"]],
+  ["saving", "💰", "Tiết kiệm", "green", ["Tiết kiệm hàng tháng", "Quỹ khẩn cấp", "Tiết kiệm mua nhà", "Tiết kiệm mua xe", "Tiết kiệm du lịch", "Tiết kiệm cưới hỏi", "Tiết kiệm mua đồ công nghệ", "Tiết kiệm mục tiêu khác"]],
+  ["investment", "📈", "Đầu tư", "green", ["Chứng khoán", "Chứng chỉ quỹ", "Trái phiếu", "Vàng", "Tiền gửi có kỳ hạn", "Đầu tư kinh doanh", "Đầu tư khác"]],
+  ["health", "🏥", "Sức khỏe", "red", ["Khám bệnh", "Thuốc", "Xét nghiệm", "Nha khoa", "Mắt / kính", "Điều trị / thủ thuật", "Bảo hiểm y tế", "Bảo hiểm sức khỏe", "Thực phẩm bổ sung", "Khoản sức khỏe khác"]],
+  ["insurance", "🛡️", "Bảo hiểm", "blue", ["Bảo hiểm nhân thọ", "Bảo hiểm sức khỏe", "Bảo hiểm xe", "Bảo hiểm nhà / tài sản", "Bảo hiểm du lịch", "Bảo hiểm khác"]],
+  ["work", "👔", "Công việc", "blue", ["Ăn uống khi đi làm", "Đi lại phục vụ công việc", "Trang phục công sở", "Thiết bị phục vụ công việc", "Công tác", "Chứng chỉ nghề nghiệp", "Phí nghề nghiệp", "Khoản công việc khác"]],
+  ["education", "📚", "Học tập & phát triển bản thân", "blue", ["Học phí", "Khóa học", "Ngoại ngữ", "Sách / tài liệu", "Thi chứng chỉ", "Phần mềm học tập", "Dụng cụ học tập", "Khoản học tập khác"]],
+  ["shopping", "👕", "Mua sắm cá nhân", "orange", ["Quần áo", "Giày dép", "Túi / balo", "Mỹ phẩm", "Chăm sóc cá nhân", "Cắt tóc", "Đồ gia dụng", "Đồ điện tử", "Mua sắm online", "Khoản mua sắm khác"]],
+  ["entertainment", "🎮", "Giải trí", "purple", ["Xem phim", "Game", "Nạp game", "Karaoke", "Cafe / đi chơi", "Du lịch", "Khách sạn", "Thể thao", "Gym", "Sở thích cá nhân", "Khoản giải trí khác"]],
+  ["subscription", "📺", "Dịch vụ đăng ký định kỳ", "purple", ["Netflix", "YouTube Premium", "Spotify", "Apple Music", "iCloud+", "Google One", "Microsoft 365", "ChatGPT", "Phần mềm / AI", "Game subscription", "Báo / nội dung số", "Dịch vụ định kỳ khác"]],
+  ["family", "👨‍👩‍👧", "Gia đình", "green", ["Gửi tiền về gia đình", "Biếu bố mẹ", "Hỗ trợ người thân", "Chi phí con cái", "Học phí con", "Tiền sinh hoạt gia đình", "Chăm sóc người thân", "Khoản gia đình khác"]],
+  ["social", "❤️", "Tình cảm & xã hội", "red", ["Hẹn hò", "Quà tặng", "Sinh nhật", "Cưới hỏi", "Mừng cưới", "Đám hiếu", "Liên hoan", "Gặp gỡ bạn bè", "Từ thiện / ủng hộ", "Khoản xã hội khác"]],
+  ["pet", "🐶", "Thú cưng", "orange", ["Thức ăn", "Khám thú y", "Thuốc / vaccine", "Grooming", "Phụ kiện", "Khoản thú cưng khác"]],
+  ["tax", "🧾", "Thuế, phí & nghĩa vụ", "orange", ["Thuế", "Lệ phí", "Phạt hành chính", "Khoản phải nộp", "Nghĩa vụ tài chính khác"]],
+  ["emergency", "🚨", "Chi phí khẩn cấp", "red", ["Khám chữa bệnh khẩn cấp", "Sửa xe đột xuất", "Sửa thiết bị đột xuất", "Hỗ trợ gia đình khẩn cấp", "Mất / hỏng tài sản", "Chi phí phát sinh bất ngờ", "Khoản khẩn cấp khác"]],
+  ["other_payable", "📦", "Khoản phải trả khác", "neutral", ["Hoàn tiền cho người khác", "Tiền ứng trước phải hoàn", "Chia tiền ăn / đi chơi", "Chia tiền nhà", "Chia hóa đơn", "Khoản phải trả cá nhân", "Khoản khác"]],
+  ["custom", "✏️", "Tùy chỉnh", "neutral", ["Tạo danh mục mới..."]]
+].map(([id, icon, label, tone, items]) => ({ id, icon, label, tone, items }))
+
+const DebtEngine = {
+  calculateTotalPaid(payment) {
+    const records = Array.isArray(payment.debtPayments) ? payment.debtPayments : []
+    return moneyInt(payment.initialPaidAmount) + records.reduce((sum, record) => sum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
+  },
+  calculateRemainingPrincipal(payment) {
+    return Math.max(0, moneyInt(payment.originalPrincipal) - this.calculateTotalPaid(payment))
+  },
+  calculateProgress(payment) {
+    const total = moneyInt(payment.originalPrincipal)
+    if (!total) return 0
+    return Math.min(100, this.calculateTotalPaid(payment) / total * 100)
+  },
+  calculateEstimatedRemainingPayments(payment) {
+    const monthlyPayment = moneyInt(payment.monthlyPayment || payment.amount)
+    const remaining = this.calculateRemainingPrincipal(payment)
+    if (!monthlyPayment || !remaining) return 0
+    return Math.ceil(remaining / monthlyPayment)
+  },
+  calculateNextPaymentAmount(payment) {
+    const monthlyPayment = moneyInt(payment.monthlyPayment || payment.amount)
+    const remaining = this.calculateRemainingPrincipal(payment)
+    if (!remaining) return 0
+    return Math.min(remaining, monthlyPayment || remaining)
+  },
+  isPaidOff(payment) {
+    return this.calculateRemainingPrincipal(payment) <= 0 && moneyInt(payment.originalPrincipal) > 0
+  },
+  snapshot(payment) {
+    const records = Array.isArray(payment.debtPayments) ? payment.debtPayments : []
+    const paidPeriods = new Set(records.map(record => record.paymentPeriod).filter(Boolean))
+    return {
+      totalPaid: this.calculateTotalPaid(payment),
+      remainingPrincipal: this.calculateRemainingPrincipal(payment),
+      progress: this.calculateProgress(payment),
+      estimatedRemainingPayments: this.calculateEstimatedRemainingPayments(payment),
+      nextPaymentAmount: this.calculateNextPaymentAmount(payment),
+      paidOff: this.isPaidOff(payment),
+      paidPeriods,
+      records
+    }
+  }
+}
+
 let state = loadState()
 let touchStartY = 0
 
@@ -197,27 +268,79 @@ function normalizePayment(payment) {
   const baseMonth = monthKey(payment.dueDate || payment.createdAt) || currentMonthKey()
   const monthlyStartMonth = recurrence === "MONTHLY" ? (payment.monthlyStartMonth || baseMonth) : ""
   const monthlyEndMonth = recurrence === "MONTHLY" ? (payment.monthlyEndMonth || addMonths(monthlyStartMonth, 11)) : ""
-  const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, Number(payment.installmentCount || 12)) : Number(payment.installmentCount || 0)
-  const paidInstallmentCount = recurrence === "INSTALLMENT"
-    ? Object.values(paidMonths).filter(Boolean).length || Number(payment.paidInstallmentCount || 0)
+  const paymentType = payment.paymentType || (recurrence === "INSTALLMENT" ? "INSTALLMENT" : recurrence === "MONTHLY" ? "RECURRING" : "ONCE")
+  const debtLike = paymentType === "MONTHLY_DEBT" || paymentType === "INSTALLMENT" || recurrence === "INSTALLMENT"
+  const installmentCount = debtLike ? Math.max(1, Number(payment.installmentCount || 12)) : Number(payment.installmentCount || 0)
+  const originalPrincipal = debtLike
+    ? moneyInt(payment.originalPrincipal || amount * installmentCount)
+    : moneyInt(payment.originalPrincipal || 0)
+  const derivedPaidFromOldState = debtLike && !Array.isArray(payment.debtPayments) && payment.remainingPrincipal
+    ? Math.max(0, originalPrincipal - moneyInt(payment.remainingPrincipal))
+    : 0
+  const initialPaidAmount = debtLike
+    ? moneyInt(payment.initialPaidAmount || derivedPaidFromOldState)
+    : 0
+  const debtPayments = Array.isArray(payment.debtPayments)
+    ? payment.debtPayments.map(normalizeDebtPaymentRecord).filter(Boolean)
+    : []
+  const debtSnapshot = debtLike
+    ? DebtEngine.snapshot({ ...payment, amount, originalPrincipal, initialPaidAmount, debtPayments })
+    : null
+  const paidInstallmentCount = debtLike
+    ? debtSnapshot.paidPeriods.size || Object.values(paidMonths).filter(Boolean).length || Number(payment.paidInstallmentCount || 0)
     : Number(payment.paidInstallmentCount || 0)
-  const originalPrincipal = recurrence === "INSTALLMENT"
-    ? Number(payment.originalPrincipal || amount * installmentCount)
-    : Number(payment.originalPrincipal || 0)
+  const categoryInfo = categoryForPayment(payment)
 
   return {
     ...payment,
     amount,
     recurrence,
+    paymentType,
     paidMonths,
     monthlyStartMonth,
     monthlyEndMonth,
     installmentCount,
     paidInstallmentCount,
+    initialPaidAmount,
+    debtPayments,
     originalPrincipal,
-    remainingPrincipal: recurrence === "INSTALLMENT"
-      ? Math.max(0, originalPrincipal - paidInstallmentCount * amount)
+    remainingPrincipal: debtLike
+      ? debtSnapshot.remainingPrincipal
       : Number(payment.remainingPrincipal || 0)
+    ,
+    categoryId: categoryInfo.id,
+    categoryLabel: categoryInfo.label,
+    categoryIcon: categoryInfo.icon,
+    categoryTone: categoryInfo.tone,
+    subcategory: payment.subcategory || categoryInfo.subcategory || "",
+    customCategory: payment.customCategory || "",
+    status: debtLike
+      ? (debtSnapshot.paidOff ? "PAID_OFF" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"))
+      : (payment.status || "DUE")
+  }
+}
+
+function moneyInt(value) {
+  return Math.max(0, Math.round(Number(value || 0)))
+}
+
+function normalizeDebtPaymentRecord(record) {
+  if (!record || typeof record !== "object") return null
+  const actualPaidAmount = moneyInt(record.actualPaidAmount ?? record.principalPaid ?? record.amount)
+  if (!actualPaidAmount) return null
+  return {
+    id: record.id || newId(),
+    debtID: record.debtID || "",
+    scheduledAmount: moneyInt(record.scheduledAmount || actualPaidAmount),
+    actualPaidAmount,
+    principalPaid: moneyInt(record.principalPaid || actualPaidAmount),
+    interestPaid: moneyInt(record.interestPaid || 0),
+    feePaid: moneyInt(record.feePaid || 0),
+    paidAt: record.paidAt || new Date().toISOString(),
+    dueDate: eventDate(record.dueDate || record.paidAt) || new Date().toISOString().slice(0, 10),
+    paymentPeriod: record.paymentPeriod || monthKey(record.dueDate || record.paidAt) || currentMonthKey(),
+    notes: record.notes || "",
+    createdAt: record.createdAt || record.paidAt || new Date().toISOString()
   }
 }
 
@@ -309,6 +432,238 @@ function bindMoneyInput(input) {
   })
 }
 
+function categoryById(id) {
+  return PAYMENT_CATEGORIES.find(category => category.id === id) || null
+}
+
+function categoryForPayment(payment = {}) {
+  const matched = categoryById(payment.categoryId)
+  if (matched) {
+    return {
+      id: matched.id,
+      icon: matched.icon,
+      label: payment.customCategory || matched.label,
+      tone: matched.tone,
+      subcategory: payment.subcategory || ""
+    }
+  }
+
+  const legacy = {
+    house: "housing",
+    laptop: "tech",
+    card: "credit_card",
+    bill: "housing",
+    wifi: "housing",
+    loan: "loan",
+    other: "other_payable"
+  }[payment.category]
+  const fallback = categoryById(legacy) || categoryById("other_payable")
+  return {
+    id: fallback.id,
+    icon: fallback.icon,
+    label: fallback.label,
+    tone: fallback.tone,
+    subcategory: payment.subcategory || ""
+  }
+}
+
+function categorySelectButton(payment = {}) {
+  const category = categoryForPayment(payment)
+  const subcategory = payment.subcategory || "Chọn danh mục"
+  return `
+    <button type="button" class="category-select" data-action="open-category-picker">
+      <span class="category-select-icon ${category.tone}">${category.icon}</span>
+      <span>
+        <strong>${escapeHtml(subcategory)}</strong>
+        <span>${escapeHtml(category.label)}</span>
+      </span>
+      <span class="time-field-caret">${iconSvg("chevronDown")}</span>
+    </button>
+    <input type="hidden" name="categoryId" value="${escapeHtml(category.id)}" />
+    <input type="hidden" name="subcategory" value="${escapeHtml(payment.subcategory || "")}" />
+    <input type="hidden" name="customCategory" value="${escapeHtml(payment.customCategory || "")}" />
+    ${categoryPickerPanel()}
+  `
+}
+
+function categoryPickerPanel() {
+  return `
+    <div class="category-picker-panel hidden">
+      <input class="category-search" placeholder="Tìm hoặc tự nhập..." autocomplete="off" />
+      <div class="category-picker-list">
+        ${PAYMENT_CATEGORIES.map(category => `
+          <div class="category-group" data-category-group>
+            <div class="category-group-title">
+              <span class="category-select-icon ${category.tone}">${category.icon}</span>
+              <strong>${escapeHtml(category.label)}</strong>
+            </div>
+            <div class="category-options">
+              ${category.items.map(item => `
+                <button type="button" class="category-option" data-category-id="${category.id}" data-subcategory="${escapeHtml(item)}">
+                  <span>${escapeHtml(item)}</span>
+                  <small>${escapeHtml(category.label)}</small>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `
+}
+
+function syncCategoryInputs(form, selection) {
+  if (!form || !selection) return
+  form.elements.categoryId.value = selection.categoryId
+  form.elements.subcategory.value = selection.subcategory
+  form.elements.customCategory.value = selection.customCategory || ""
+  const nameInput = form.elements.name
+  if (nameInput && !String(nameInput.value || "").trim()) nameInput.value = selection.subcategory
+  const button = form.querySelector(".category-select")
+  if (button) {
+    const category = categoryById(selection.categoryId) || categoryById("custom")
+    button.outerHTML = categorySelectButton({
+      categoryId: selection.categoryId,
+      subcategory: selection.subcategory,
+      customCategory: selection.customCategory
+    }).split("<input")[0]
+    bindCategoryPicker(form)
+  }
+}
+
+function bindCategoryPicker(form) {
+  const panel = form?.querySelector(".category-picker-panel")
+  const search = form?.querySelector(".category-search")
+  form?.querySelector("[data-action='open-category-picker']")?.addEventListener("click", () => {
+    panel?.classList.toggle("hidden")
+    search?.focus()
+  })
+  form?.querySelectorAll(".category-option").forEach(button => {
+    button.onclick = () => {
+      const rawSubcategory = button.dataset.subcategory
+      const typed = String(search?.value || "").trim()
+      const useCustom = button.dataset.categoryId === "custom" && rawSubcategory === "Tạo danh mục mới..."
+      syncCategoryInputs(form, {
+        categoryId: button.dataset.categoryId,
+        subcategory: useCustom && typed ? typed : rawSubcategory,
+        customCategory: useCustom ? "Tùy chỉnh" : ""
+      })
+      panel?.classList.add("hidden")
+    }
+  })
+  search?.addEventListener("input", () => {
+    const keyword = search.value.trim().toLowerCase()
+    form.querySelectorAll("[data-category-group]").forEach(group => {
+      let visible = false
+      group.querySelectorAll(".category-option").forEach(option => {
+        const match = !keyword || option.textContent.toLowerCase().includes(keyword)
+        option.classList.toggle("hidden", !match)
+        visible = visible || match
+      })
+      group.classList.toggle("hidden", !visible)
+    })
+  })
+}
+
+function openCategoryPickerModal(formId) {
+  const rows = PAYMENT_CATEGORIES.map(category => `
+    <div class="category-group" data-category-group>
+      <div class="category-group-title">
+        <span class="category-select-icon ${category.tone}">${category.icon}</span>
+        <strong>${escapeHtml(category.label)}</strong>
+      </div>
+      <div class="category-options">
+        ${category.items.map(item => `
+          <button type="button" class="category-option" data-category-id="${category.id}" data-category-label="${escapeHtml(category.label)}" data-subcategory="${escapeHtml(item)}">
+            <span>${escapeHtml(item)}</span>
+            <small>${escapeHtml(category.label)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `).join("")
+
+  openModal(`
+    <h2>Loại khoản chi / khoản phải trả</h2>
+    <div class="form">
+      <div class="field">
+        <label>Tìm hoặc tự nhập</label>
+        <input id="categorySearch" placeholder="Ví dụ: tiền điện, trả góp laptop..." autocomplete="off" />
+      </div>
+      <div class="category-picker-list">${rows}</div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-close>Hủy</button>
+        <button type="button" class="primary" data-action="use-custom-category">Dùng nội dung nhập</button>
+      </div>
+    </div>
+  `)
+
+  const sourceForm = document.getElementById(formId)
+  const search = document.getElementById("categorySearch")
+  const choose = selection => {
+    closeModal()
+    syncCategoryInputs(sourceForm, selection)
+  }
+  document.querySelectorAll(".category-option").forEach(button => {
+    button.onclick = () => {
+      const categoryId = button.dataset.categoryId
+      const subcategory = button.dataset.subcategory
+      const customCategory = categoryId === "custom" && subcategory === "Tạo danh mục mới..." ? "" : ""
+      choose({ categoryId, subcategory, customCategory })
+    }
+  })
+  document.querySelector("[data-action='use-custom-category']").onclick = () => {
+    const value = String(search.value || "").trim()
+    if (!value) {
+      showToast("Nhập tên khoản hoặc chọn trong danh sách")
+      return
+    }
+    choose({ categoryId: "custom", subcategory: value, customCategory: "Tùy chỉnh" })
+  }
+  search.addEventListener("input", () => {
+    const keyword = search.value.trim().toLowerCase()
+    document.querySelectorAll("[data-category-group]").forEach(group => {
+      let visible = false
+      group.querySelectorAll(".category-option").forEach(option => {
+        const match = !keyword || option.textContent.toLowerCase().includes(keyword)
+        option.classList.toggle("hidden", !match)
+        visible = visible || match
+      })
+      group.classList.toggle("hidden", !visible)
+    })
+  })
+  search.focus()
+}
+
+function legacyCategoryFor(categoryId) {
+  return {
+    housing: "house",
+    food: "other",
+    transport: "other",
+    tech: "laptop",
+    credit_card: "card",
+    loan: "loan",
+    installment: "laptop",
+    banking: "bank",
+    saving: "other",
+    investment: "other",
+    health: "other",
+    insurance: "other",
+    work: "other",
+    education: "other",
+    shopping: "other",
+    entertainment: "other",
+    subscription: "card",
+    family: "other",
+    social: "other",
+    pet: "other",
+    tax: "other",
+    emergency: "other",
+    other_payable: "other",
+    custom: "other"
+  }[categoryId] || "other"
+}
+
 function base64UrlEncode(text) {
   const bytes = new TextEncoder().encode(text)
   let binary = ""
@@ -393,11 +748,23 @@ function paymentOccurrenceMonths(payment) {
   if (recurrence === "ONCE") return [startMonth]
 
   const paidMonths = Object.keys(payment.paidMonths || {})
+  const debtLike = isDebtPayment(payment)
   const endMonthNumber = Math.max(
     monthNumber(currentMonthKey()),
     monthNumber(viewingMonth()),
-    ...paidMonths.map(monthNumber)
+    ...paidMonths.map(monthNumber),
+    ...(payment.debtPayments || []).map(record => monthNumber(record.paymentPeriod))
   )
+
+  if (debtLike) {
+    const snapshot = DebtEngine.snapshot(payment)
+    const estimatedEndMonthNumber = monthNumber(startMonth) + Math.max(0, snapshot.paidPeriods.size + snapshot.estimatedRemainingPayments - 1)
+    const cappedEndMonthNumber = snapshot.paidOff
+      ? monthNumber(lastDebtPaymentPeriod(payment) || startMonth)
+      : Math.max(endMonthNumber, estimatedEndMonthNumber)
+    const count = Math.max(0, cappedEndMonthNumber - monthNumber(startMonth) + 1)
+    return Array.from({ length: count }, (_, index) => addMonths(startMonth, index))
+  }
 
   if (recurrence === "INSTALLMENT") {
     const count = Math.max(1, Number(payment.installmentCount || 12))
@@ -439,6 +806,7 @@ function materializePaymentForMonth(payment, key) {
   if (!baseDate) return null
 
   const recurrence = payment.recurrence || "ONCE"
+  const debtLike = isDebtPayment(payment)
   const startMonth = recurrence === "MONTHLY"
     ? (payment.monthlyStartMonth || monthKey(baseDate))
     : monthKey(baseDate)
@@ -448,32 +816,55 @@ function materializePaymentForMonth(payment, key) {
     const endMonth = payment.monthlyEndMonth || addMonths(startMonth, 11)
     if (offset < 0 || monthNumber(key) > monthNumber(endMonth)) return null
   }
-  if (recurrence === "INSTALLMENT") {
+  if (recurrence === "INSTALLMENT" && !debtLike) {
     const count = Math.max(1, Number(payment.installmentCount || 12))
     if (offset < 0 || offset >= count) return null
   }
+  if (debtLike && offset < 0) return null
 
   const paidMonths = payment.paidMonths || {}
-  const paid = recurrence === "ONCE"
+  const debtSnapshot = debtLike ? DebtEngine.snapshot(payment) : null
+  const debtPaidThisPeriod = debtLike ? debtSnapshot.records.some(record => record.paymentPeriod === key) : false
+  if (debtLike && debtSnapshot.paidOff && !debtPaidThisPeriod && monthNumber(key) > monthNumber(lastDebtPaymentPeriod(payment) || startMonth)) return null
+
+  const paid = debtLike
+    ? debtPaidThisPeriod
+    : recurrence === "ONCE"
     ? Boolean(payment.paid || payment.status === "PAID")
     : Boolean(paidMonths[key])
-  const paidInstallmentCount = recurrence === "INSTALLMENT"
+  const paidInstallmentCount = debtLike
+    ? debtSnapshot.paidPeriods.size
+    : recurrence === "INSTALLMENT"
     ? Object.keys(paidMonths).filter(month => paidMonths[month] && monthOffset(startMonth, month) >= 0 && monthOffset(startMonth, month) < Number(payment.installmentCount || 12)).length
     : Number(payment.paidInstallmentCount || 0)
   const originalPrincipal = Number(payment.originalPrincipal || Number(payment.amount || 0) * Number(payment.installmentCount || 12))
+  const periodPaidAmount = debtLike
+    ? debtSnapshot.records
+      .filter(record => record.paymentPeriod === key)
+      .reduce((sum, record) => sum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
+    : 0
+  const displayAmount = debtLike ? (debtPaidThisPeriod ? periodPaidAmount : debtSnapshot.nextPaymentAmount) : Number(payment.amount || 0)
 
   return {
     ...payment,
     baseId: payment.id,
     occurrenceKey: key,
     dueDate: recurrence === "ONCE" ? baseDate : dueDateInMonth(baseDate, key),
+    amount: displayAmount,
     paid,
-    status: paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"),
+    status: debtLike && debtSnapshot.paidOff ? "PAID_OFF" : paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"),
     paidInstallmentCount,
-    remainingPrincipal: recurrence === "INSTALLMENT"
+    remainingPrincipal: debtLike
+      ? debtSnapshot.remainingPrincipal
+      : recurrence === "INSTALLMENT"
       ? Math.max(0, originalPrincipal - paidInstallmentCount * Number(payment.amount || 0))
       : Number(payment.remainingPrincipal || 0)
   }
+}
+
+function lastDebtPaymentPeriod(payment) {
+  const records = Array.isArray(payment.debtPayments) ? payment.debtPayments : []
+  return records.map(record => record.paymentPeriod).filter(Boolean).sort().at(-1) || ""
 }
 
 function salaryForViewingMonth() {
@@ -519,6 +910,17 @@ function dueDateValue(payment) {
   return value || "9999-12-31"
 }
 
+function isDebtPayment(payment) {
+  return payment?.paymentType === "MONTHLY_DEBT" || payment?.paymentType === "INSTALLMENT" || payment?.recurrence === "INSTALLMENT"
+}
+
+function paymentTypeLabel(payment) {
+  if (payment.paymentType === "MONTHLY_DEBT") return "Khoản nợ trả hàng tháng"
+  if (payment.paymentType === "INSTALLMENT" || payment.recurrence === "INSTALLMENT") return "Trả góp"
+  if (payment.recurrence === "MONTHLY") return "Định kỳ thông thường"
+  return "Một lần"
+}
+
 function alertablePaymentsForViewingMonth() {
   const today = new Date().toISOString().slice(0, 10)
   return sortPayments(paymentsForViewingMonth().filter(payment => {
@@ -534,6 +936,7 @@ function notificationBelongsToViewingMonth(item) {
 }
 
 function dueAmount(payment) {
+  if (payment.status === "PAID_OFF") return 0
   if (payment.paid || payment.status === "PAID") return 0
   return Number(payment.amount || 0)
 }
@@ -554,13 +957,18 @@ function finance() {
   const remainingSkippable = monthPayments
     .filter(payment => payment.priority === "SKIPPABLE")
     .reduce((sum, payment) => sum + dueAmount(payment), 0)
-  const paidThisMonth = monthPayments.reduce((sum, payment) => sum + (payment.paid ? Number(payment.amount || 0) : 0), 0)
+  const paidThisMonth = monthPayments.reduce((sum, payment) => {
+    if (isDebtPayment(payment)) {
+      return sum + (payment.debtPayments || [])
+        .filter(record => record.paymentPeriod === viewingMonth())
+        .reduce((recordSum, record) => recordSum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
+    }
+    return sum + (payment.paid ? Number(payment.amount || 0) : 0)
+  }, 0)
   const availableAfterMandatory = monthlyIncome - remainingMandatory
   const availableAfterBills = monthlyIncome - remainingMandatory - remainingSkippable
-  const totalOutstandingDebt = monthPayments.reduce((sum, payment) => {
-    if (payment.recurrence === "INSTALLMENT") return sum + Number(payment.remainingPrincipal || 0)
-    return sum + dueAmount(payment)
-  }, 0)
+  const debtSummary = debtPortfolioSummary()
+  const totalOutstandingDebt = debtSummary.remaining
 
   return {
     monthlyIncome,
@@ -573,7 +981,29 @@ function finance() {
     availableAfterMandatory,
     targetSavings: Math.max(0, availableAfterBills),
     availableAfterSavings: availableAfterBills,
-    totalOutstandingDebt
+    totalOutstandingDebt,
+    debtSummary
+  }
+}
+
+function debtPayments() {
+  return state.payments.filter(isDebtPayment)
+}
+
+function debtPortfolioSummary() {
+  const debts = debtPayments()
+  const original = debts.reduce((sum, payment) => sum + moneyInt(payment.originalPrincipal), 0)
+  const paid = debts.reduce((sum, payment) => sum + DebtEngine.calculateTotalPaid(payment), 0)
+  const remaining = debts.reduce((sum, payment) => sum + DebtEngine.calculateRemainingPrincipal(payment), 0)
+  return {
+    debts,
+    original,
+    paid,
+    remaining,
+    progress: original ? Math.min(100, paid / original * 100) : 0,
+    dueThisMonth: paymentsForViewingMonth()
+      .filter(payment => isDebtPayment(payment) && !payment.paid && payment.status !== "PAID_OFF")
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   }
 }
 
@@ -589,9 +1019,9 @@ function filteredPayments() {
   const filtered = paymentsForViewingMonth().filter(payment => {
     if (state.paymentFilter === "must") return payment.priority === "MUST_PAY"
     if (state.paymentFilter === "skippable") return payment.priority === "SKIPPABLE"
-    if (state.paymentFilter === "installment") return payment.recurrence === "INSTALLMENT"
+    if (state.paymentFilter === "installment") return isDebtPayment(payment)
     if (state.paymentFilter === "once") return payment.recurrence === "ONCE"
-    if (state.paymentFilter === "paid") return payment.paid || payment.status === "PAID"
+    if (state.paymentFilter === "paid") return payment.paid || payment.status === "PAID" || payment.status === "PAID_OFF"
     return true
   })
   return sortPayments(filtered)
@@ -616,7 +1046,11 @@ function checklistPayments() {
   }))
 }
 
-function categoryIcon(category) {
+function categoryIcon(paymentOrCategory) {
+  if (paymentOrCategory && typeof paymentOrCategory === "object") {
+    const category = categoryForPayment(paymentOrCategory)
+    return `<span class="category-emoji">${category.icon}</span>`
+  }
   return {
     house: iconSvg("house"),
     laptop: iconSvg("laptop"),
@@ -624,11 +1058,13 @@ function categoryIcon(category) {
     bill: iconSvg("bolt"),
     wifi: iconSvg("wifi"),
     loan: iconSvg("bank"),
+    bank: iconSvg("bank"),
     other: iconSvg("receipt")
-  }[category] || iconSvg("receipt")
+  }[paymentOrCategory] || iconSvg("receipt")
 }
 
-function categoryTone(category) {
+function categoryTone(paymentOrCategory) {
+  if (paymentOrCategory && typeof paymentOrCategory === "object") return categoryForPayment(paymentOrCategory).tone
   return {
     house: "green",
     laptop: "blue",
@@ -636,11 +1072,13 @@ function categoryTone(category) {
     bill: "orange",
     wifi: "orange",
     loan: "green",
+    bank: "green",
     other: "neutral"
-  }[category] || "neutral"
+  }[paymentOrCategory] || "neutral"
 }
 
 function statusHtml(payment) {
+  if (payment.status === "PAID_OFF") return `<span class="status paid">Đã tất toán</span>`
   if (payment.paid || payment.status === "PAID") return `<span class="status paid">Đã trả</span>`
   if (payment.priority === "SKIPPABLE") return `<span class="status skip">Có thể skip</span>`
   return `<span class="status must">Phải trả đúng hạn</span>`
@@ -823,6 +1261,12 @@ function renderDashboard() {
       )}
     </section>
 
+    ${f.debtSummary.debts.length ? `
+      <section class="section">
+        ${debtOverviewCard(f.debtSummary)}
+      </section>
+    ` : ""}
+
     <section class="section">
       <div class="section-head">
         <h2>Việc cần trả sắp đến hạn</h2>
@@ -862,6 +1306,63 @@ function renderDashboard() {
         "open-payment"
       )}
     </section>
+  `
+}
+
+function debtOverviewCard(summary = debtPortfolioSummary()) {
+  const progress = summary.progress.toFixed(1).replace(".", ",")
+  return `
+    <button type="button" class="debt-overview-card card" data-action="open-debt-overview">
+      <div class="debt-card-head">
+        <div class="list-icon purple">${iconSvg("chart")}</div>
+        <div>
+          <strong>Nợ hiện tại</strong>
+          <div class="row-sub">Đã trả ${progress}% tổng dư nợ ban đầu</div>
+        </div>
+      </div>
+      <div class="debt-card-grid">
+        <div><span>Tổng dư nợ</span><strong>${money(summary.remaining)}</strong></div>
+        <div><span>Đã trả</span><strong class="green">${money(summary.paid)}</strong></div>
+        <div><span>Kỳ tháng này</span><strong>${money(summary.dueThisMonth)}</strong></div>
+      </div>
+      <div class="bar debt-bar"><span style="width:${Math.min(100, summary.progress)}%"></span></div>
+    </button>
+  `
+}
+
+function openDebtOverviewModal() {
+  const summary = debtPortfolioSummary()
+  openModal(`
+    <h2>Kế hoạch trả nợ</h2>
+    <div class="form">
+      ${debtOverviewCard(summary)}
+      <section class="section">
+        <div class="section-head"><h2>Tiến độ từng khoản</h2></div>
+        ${summary.debts.length ? `<div class="card list">${summary.debts.map(debtProgressRow).join("")}</div>` : `<div class="card empty-card"><div class="list-icon purple">${iconSvg("info")}</div><div><strong>Chưa có khoản nợ</strong><div class="desc">Tạo khoản nợ trả hàng tháng hoặc trả góp để theo dõi dư nợ giảm dần.</div></div></div>`}
+      </section>
+      <button type="button" class="primary" data-close>Đóng</button>
+    </div>
+  `)
+  document.querySelectorAll("[data-debt-id]").forEach(button => {
+    button.onclick = () => openDebtDetailModal(button.dataset.debtId)
+  })
+}
+
+function debtProgressRow(payment) {
+  const snapshot = DebtEngine.snapshot(payment)
+  const progress = snapshot.progress.toFixed(1).replace(".", ",")
+  return `
+    <button type="button" class="debt-progress-row" data-debt-id="${payment.id}">
+      <div class="list-icon ${categoryTone(payment)}">${categoryIcon(payment)}</div>
+      <div class="row-main">
+        <div class="row-line row-line-top">
+          <strong class="row-title">${escapeHtml(payment.name)}</strong>
+          <strong class="row-amount">${progress}%</strong>
+        </div>
+        <div class="bar debt-bar"><span style="width:${Math.min(100, snapshot.progress)}%"></span></div>
+        <div class="row-sub">Đã trả ${money(snapshot.totalPaid)} / ${money(payment.originalPrincipal)}</div>
+      </div>
+    </button>
   `
 }
 
@@ -911,13 +1412,17 @@ function metric(icon, label, value, sub) {
 }
 
 function paymentRow(payment) {
-  const meta = payment.recurrence === "INSTALLMENT"
+  const debt = isDebtPayment(payment)
+  const debtSnapshot = debt ? DebtEngine.snapshot(payment) : null
+  const meta = debt
+    ? `Đã trả ${debtSnapshot.progress.toFixed(1).replace(".", ",")}% · còn ${money(debtSnapshot.remainingPrincipal)}`
+    : payment.recurrence === "INSTALLMENT"
     ? `Kỳ ${payment.paidInstallmentCount || 0}/${payment.installmentCount || 0}`
     : payment.recurrence === "ONCE" ? "Một lần" : monthLabel(monthKey(payment.dueDate))
 
   return `
     <div class="row-item" data-payment-id="${payment.id}">
-      <div class="list-icon ${categoryTone(payment.category)}">${categoryIcon(payment.category)}</div>
+      <div class="list-icon ${categoryTone(payment)}">${categoryIcon(payment)}</div>
       <div class="row-main">
         <div class="row-line row-line-top">
           <div class="row-title">${safeText(payment.name)}</div>
@@ -935,7 +1440,11 @@ function paymentRow(payment) {
 }
 
 function checklistRow(payment) {
-  const meta = payment.recurrence === "INSTALLMENT"
+  const debt = isDebtPayment(payment)
+  const debtSnapshot = debt ? DebtEngine.snapshot(payment) : null
+  const meta = debt
+    ? `${payment.paid ? "Đã ghi nhận" : `Còn nợ ${money(debtSnapshot.remainingPrincipal)}`}`
+    : payment.recurrence === "INSTALLMENT"
     ? `Còn ${(payment.installmentCount || 0) - (payment.paidInstallmentCount || 0)}/${payment.installmentCount || 0} kỳ`
     : payment.paid ? "Đã thanh toán" : "Cần thanh toán"
 
@@ -1083,6 +1592,24 @@ function renderAnalytics() {
       ${analysisLine(iconSvg("coin"), "Khả dụng sau kế hoạch", f.availableAfterSavings, f.monthlyIncome, "var(--blue)")}
       ${analysisLine(iconSvg("piggy"), "Tiết kiệm dự kiến", f.targetSavings, f.monthlyIncome, "var(--green)")}
     </section>
+    ${f.debtSummary.debts.length ? `
+      <section class="section">
+        <div class="section-head">
+          <h2>Tiến độ trả nợ</h2>
+          <button class="link icon-link" data-action="open-debt-overview"><span>Chi tiết</span>${iconSvg("chevronRight")}</button>
+        </div>
+        <div class="card debt-analytics">
+          <div class="debt-card-grid">
+            <div><span>Tổng nợ ban đầu</span><strong>${money(f.debtSummary.original)}</strong></div>
+            <div><span>Tổng đã trả</span><strong class="green">${money(f.debtSummary.paid)}</strong></div>
+            <div><span>Tổng dư nợ</span><strong>${money(f.debtSummary.remaining)}</strong></div>
+          </div>
+          <div class="bar debt-bar"><span style="width:${Math.min(100, f.debtSummary.progress)}%"></span></div>
+          <div class="row-sub">Tiến độ tổng ${f.debtSummary.progress.toFixed(1).replace(".", ",")}%</div>
+          <div class="list debt-progress-list">${f.debtSummary.debts.map(debtProgressRow).join("")}</div>
+        </div>
+      </section>
+    ` : ""}
     <section class="section">
       <div class="section-head">
         <h2>Lịch sử theo tháng</h2>
@@ -1328,6 +1855,10 @@ function bindScreenActions() {
     button.onclick = openRecommendationsModal
   })
 
+  document.querySelectorAll("[data-action='open-debt-overview']").forEach(button => {
+    button.onclick = openDebtOverviewModal
+  })
+
   document.querySelectorAll("[data-action='month-prev']").forEach(button => {
     button.onclick = () => {
       state.selectedMonth = addMonths(viewingMonth(), -1)
@@ -1400,6 +1931,10 @@ function escapeHtml(value) {
 function openPaymentDetailModal(id) {
   const basePayment = state.payments.find(item => item.id === id)
   if (!basePayment) return
+  if (isDebtPayment(basePayment)) {
+    openDebtDetailModal(basePayment.id)
+    return
+  }
   const payment = materializePaymentForMonth(basePayment, viewingMonth()) || basePayment
 
   openModal(`
@@ -1408,7 +1943,7 @@ function openPaymentDetailModal(id) {
       <div class="detail-grid">
         <div class="detail-box"><span>Số tiền</span><strong>${money(payment.amount)}</strong></div>
         <div class="detail-box"><span>Ngày đến hạn</span><strong>${formatDate(payment.dueDate)}</strong></div>
-        <div class="detail-box"><span>Loại</span><strong>${payment.recurrence === "INSTALLMENT" ? "Trả góp" : payment.recurrence === "MONTHLY" ? "Theo tháng" : "Một lần"}</strong></div>
+        <div class="detail-box"><span>Loại</span><strong>${paymentTypeLabel(payment)}</strong></div>
         <div class="detail-box"><span>Trạng thái</span><strong>${payment.paid ? "Đã trả" : "Chưa trả"}</strong></div>
       </div>
       ${payment.recurrence === "MONTHLY" ? `<div class="bank-line">Áp dụng từ ${monthLabel(payment.monthlyStartMonth)} đến ${monthLabel(payment.monthlyEndMonth)}</div>` : ""}
@@ -1430,6 +1965,87 @@ function openPaymentDetailModal(id) {
   document.querySelector("[data-action='detail-delete-payment']").onclick = () => deletePayment(basePayment.id)
 }
 
+function openDebtDetailModal(id) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+  const snapshot = DebtEngine.snapshot(payment)
+  const progress = snapshot.progress.toFixed(1).replace(".", ",")
+  const nextDue = dueDateInMonth(payment.dueDate || dateForViewingMonth(), viewingMonth())
+  const records = [...snapshot.records].sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt)))
+
+  openModal(`
+    <h2>${escapeHtml(payment.name)}</h2>
+    <div class="form">
+      <section class="debt-detail-hero">
+        <div class="debt-ring" style="--value:${snapshot.progress}%">
+          <div><strong>${progress}%</strong><span>đã trả</span></div>
+        </div>
+        <div>
+          <div class="row-sub">${escapeHtml(paymentTypeLabel(payment))}</div>
+          <strong>${escapeHtml(payment.subcategory || categoryForPayment(payment).label)}</strong>
+          <div class="bar debt-bar"><span style="width:${Math.min(100, snapshot.progress)}%"></span></div>
+        </div>
+      </section>
+      <div class="detail-grid">
+        <div class="detail-box"><span>Tổng nợ ban đầu</span><strong>${money(payment.originalPrincipal)}</strong></div>
+        <div class="detail-box"><span>Đã trả</span><strong class="green">${money(snapshot.totalPaid)}</strong></div>
+        <div class="detail-box"><span>Còn lại</span><strong>${money(snapshot.remainingPrincipal)}</strong></div>
+        <div class="detail-box"><span>Dự kiến còn</span><strong>${snapshot.estimatedRemainingPayments} kỳ</strong></div>
+      </div>
+      <div class="debt-next-box">
+        <div>
+          <span>Kỳ tiếp theo</span>
+          <strong>${snapshot.paidOff ? "Đã tất toán" : formatDate(nextDue)}</strong>
+        </div>
+        <div>
+          <span>Số tiền kỳ này</span>
+          <strong>${money(snapshot.nextPaymentAmount)}</strong>
+        </div>
+      </div>
+      ${payment.notes ? `<div class="bank-line">${escapeHtml(payment.notes)}</div>` : ""}
+      <section class="section">
+        <div class="section-head">
+          <h2>Lịch sử thanh toán</h2>
+          <button type="button" class="link" data-action="debt-extra-payment">Trả thêm</button>
+        </div>
+        ${records.length ? `<div class="card list">${records.map(debtPaymentRecordRow).join("")}</div>` : `<div class="card empty-card"><div class="list-icon purple">${iconSvg("info")}</div><div><strong>Chưa có thanh toán</strong><div class="desc">Khi xác nhận đã trả, lịch sử sẽ xuất hiện ở đây.</div></div></div>`}
+      </section>
+      <div class="form-actions stack-actions">
+        <button type="button" class="primary" data-action="debt-record-payment" ${snapshot.paidOff ? "disabled" : ""}>Ghi nhận thanh toán</button>
+        <button type="button" class="ghost" data-action="debt-edit-payment">Chỉnh sửa</button>
+        <button type="button" class="ghost red" data-action="detail-delete-payment">Xóa khoản</button>
+        <button type="button" class="ghost" data-close>Đóng</button>
+      </div>
+    </div>
+  `)
+
+  document.querySelector("[data-action='debt-record-payment']")?.addEventListener("click", () => openDebtPaymentModal(id, viewingMonth()))
+  document.querySelector("[data-action='debt-extra-payment']")?.addEventListener("click", () => openDebtPaymentModal(id, viewingMonth(), true))
+  document.querySelector("[data-action='debt-edit-payment']").onclick = () => openEditPaymentModal(id)
+  document.querySelector("[data-action='detail-delete-payment']").onclick = () => deletePayment(id)
+  document.querySelectorAll("[data-action='undo-debt-record']").forEach(button => {
+    button.onclick = () => undoDebtPaymentRecord(id, button.dataset.recordId)
+  })
+}
+
+function debtPaymentRecordRow(record) {
+  return `
+    <div class="timeline-row">
+      <div class="list-icon green">${iconSvg("check")}</div>
+      <div class="row-main">
+        <div class="row-line row-line-top">
+          <strong class="row-title">${monthLabel(record.paymentPeriod)}</strong>
+          <strong class="green row-amount">${money(record.principalPaid)}</strong>
+        </div>
+        <div class="row-line row-line-bottom">
+          <div class="row-date">Trả ${formatDate(eventDate(record.paidAt) || record.dueDate)}</div>
+          <button type="button" class="link compact-link" data-action="undo-debt-record" data-record-id="${record.id}">Undo</button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
 function openEditPaymentModal(id) {
   const payment = state.payments.find(item => item.id === id)
   if (!payment) return
@@ -1438,10 +2054,14 @@ function openEditPaymentModal(id) {
     <h2>Sửa khoản phải trả</h2>
     <form id="editPaymentForm" class="form">
       <div class="field">
+        <label>Loại khoản chi / khoản phải trả</label>
+        ${categorySelectButton(payment)}
+      </div>
+      <div class="field">
         <label>Tên khoản</label>
         <input name="name" value="${escapeHtml(payment.name)}" required />
       </div>
-      <div class="field">
+      <div class="field normal-amount-field">
         <label>Số tiền</label>
         <input name="amount" inputmode="numeric" value="${formatNumberInput(payment.amount)}" required />
       </div>
@@ -1472,16 +2092,37 @@ function openEditPaymentModal(id) {
         </div>
       </div>
       <div class="field">
-        <label>Loại lặp lại</label>
+        <label>Loại thanh toán</label>
         <select name="recurrence" id="editPaymentRecurrence">
-          <option value="ONCE" ${payment.recurrence === "ONCE" ? "selected" : ""}>Một lần</option>
-          <option value="MONTHLY" ${payment.recurrence === "MONTHLY" ? "selected" : ""}>Theo tháng</option>
-          <option value="INSTALLMENT" ${payment.recurrence === "INSTALLMENT" ? "selected" : ""}>Trả góp</option>
+          <option value="ONCE" ${payment.paymentType === "ONCE" || payment.recurrence === "ONCE" ? "selected" : ""}>Một lần</option>
+          <option value="MONTHLY" ${payment.paymentType === "RECURRING" || payment.recurrence === "MONTHLY" ? "selected" : ""}>Định kỳ thông thường</option>
+          <option value="MONTHLY_DEBT" ${payment.paymentType === "MONTHLY_DEBT" ? "selected" : ""}>Khoản nợ trả hàng tháng</option>
+          <option value="INSTALLMENT" ${payment.paymentType === "INSTALLMENT" || payment.recurrence === "INSTALLMENT" ? "selected" : ""}>Trả góp</option>
         </select>
       </div>
-      <div class="field ${payment.recurrence === "INSTALLMENT" ? "" : "hidden"}" id="editPaymentInstallmentField">
-        <label>Số kỳ trả góp</label>
-        <input name="installmentCount" inputmode="numeric" value="${payment.installmentCount || 12}" />
+      <section class="debt-form-section ${isDebtPayment(payment) ? "" : "hidden"}" id="editPaymentDebtSection">
+        <div class="section-head compact-head"><h2>Thông tin khoản nợ</h2></div>
+        <div class="field">
+          <label>Tổng nợ ban đầu</label>
+          <input name="originalPrincipal" inputmode="numeric" value="${formatNumberInput(payment.originalPrincipal)}" />
+        </div>
+        <div class="field">
+          <label>Số tiền đã trả trước đó</label>
+          <input name="initialPaidAmount" inputmode="numeric" value="${formatNumberInput(payment.initialPaidAmount)}" />
+        </div>
+        <div class="field">
+          <label>Số tiền phải trả mỗi tháng</label>
+          <input name="monthlyPayment" inputmode="numeric" value="${formatNumberInput(payment.monthlyPayment || payment.amount)}" />
+        </div>
+        <div class="field">
+          <label>Ghi chú</label>
+          <input name="notes" value="${escapeHtml(payment.notes || "")}" />
+        </div>
+        <div class="bank-line" id="editPaymentDebtEstimate">Dư nợ hiện tại: ${money(DebtEngine.calculateRemainingPrincipal(payment))}</div>
+      </section>
+      <div class="field ${isDebtPayment(payment) ? "" : "hidden"}" id="editPaymentInstallmentField">
+        <label>Số kỳ dự kiến</label>
+        <input name="installmentCount" inputmode="numeric" value="${payment.installmentCount || 12}" readonly />
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
@@ -1500,8 +2141,14 @@ function openEditPaymentModal(id) {
   document.getElementById("editPaymentForm").onsubmit = event => {
     event.preventDefault()
     const form = new FormData(event.target)
+    const recurrence = form.get("recurrence")
+    const debtLike = recurrence === "MONTHLY_DEBT" || recurrence === "INSTALLMENT"
     const name = String(form.get("name") || "").trim()
-    const amount = parseMoney(form.get("amount"))
+    const normalAmount = parseMoney(form.get("amount"))
+    const originalPrincipal = parseMoney(form.get("originalPrincipal"))
+    const initialPaidAmount = parseMoney(form.get("initialPaidAmount"))
+    const monthlyPayment = parseMoney(form.get("monthlyPayment"))
+    const amount = debtLike ? monthlyPayment : normalAmount
     if (!name) {
       showToast("Nhập tên khoản cần trả")
       return
@@ -1510,47 +2157,89 @@ function openEditPaymentModal(id) {
       showToast("Nhập số tiền lớn hơn 0")
       return
     }
+    if (debtLike && !originalPrincipal) {
+      showToast("Nhập tổng nợ ban đầu")
+      return
+    }
+    if (debtLike && initialPaidAmount > originalPrincipal) {
+      showToast("Số tiền đã trả không được vượt tổng nợ")
+      return
+    }
+    if (isDebtPayment(payment) && (payment.debtPayments || []).length && originalPrincipal !== moneyInt(payment.originalPrincipal)) {
+      if (!confirm("Khoản nợ này đã có lịch sử thanh toán. Thay đổi tổng nợ ban đầu sẽ làm thay đổi số liệu thống kê.")) return
+    }
 
     payment.name = name
     payment.amount = amount
-    payment.recurrence = form.get("recurrence")
+    payment.monthlyPayment = debtLike ? monthlyPayment : 0
+    payment.recurrence = recurrence === "MONTHLY_DEBT" ? "INSTALLMENT" : recurrence
+    payment.paymentType = debtLike ? recurrence : (recurrence === "MONTHLY" ? "RECURRING" : "ONCE")
     const monthlyStartMonth = form.get("monthlyStartMonth") || monthKey(form.get("dueDate")) || viewingMonth()
     const monthlyEndMonth = form.get("monthlyEndMonth") || monthlyStartMonth
-    if (payment.recurrence === "MONTHLY" && monthNumber(monthlyEndMonth) < monthNumber(monthlyStartMonth)) {
+    if (recurrence === "MONTHLY" && monthNumber(monthlyEndMonth) < monthNumber(monthlyStartMonth)) {
       showToast("Tháng kết thúc phải sau tháng bắt đầu")
       return
     }
-    payment.monthlyStartMonth = payment.recurrence === "MONTHLY" ? monthlyStartMonth : ""
-    payment.monthlyEndMonth = payment.recurrence === "MONTHLY" ? monthlyEndMonth : ""
-    payment.dueDate = payment.recurrence === "MONTHLY"
+    payment.monthlyStartMonth = recurrence === "MONTHLY" ? monthlyStartMonth : ""
+    payment.monthlyEndMonth = recurrence === "MONTHLY" ? monthlyEndMonth : ""
+    payment.dueDate = recurrence === "MONTHLY"
       ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
       : (form.get("dueDate") || dateForViewingMonth())
     payment.priority = form.get("priority")
-    payment.category = payment.recurrence === "INSTALLMENT" ? "laptop" : payment.category || "other"
+    payment.category = legacyCategoryFor(form.get("categoryId"))
+    payment.categoryId = form.get("categoryId")
+    payment.subcategory = form.get("subcategory")
+    payment.customCategory = form.get("customCategory")
+    payment.notes = String(form.get("notes") || "").trim()
     payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
-    if (payment.recurrence === "INSTALLMENT") {
-      payment.installmentCount = Math.max(1, parseMoney(form.get("installmentCount") || payment.installmentCount || 12))
-      payment.originalPrincipal = Math.max(Number(payment.originalPrincipal || 0), payment.amount * payment.installmentCount)
-      payment.paidInstallmentCount = Object.keys(payment.paidMonths).filter(month => payment.paidMonths[month]).length
-      payment.remainingPrincipal = Math.max(0, payment.originalPrincipal - payment.paidInstallmentCount * payment.amount)
+    if (debtLike) {
+      payment.initialPaidAmount = initialPaidAmount
+      payment.originalPrincipal = originalPrincipal
+      payment.debtPayments = Array.isArray(payment.debtPayments) ? payment.debtPayments : []
+      payment.installmentCount = Math.max(1, Math.ceil(originalPrincipal / monthlyPayment))
+      applyDebtDerivedState(payment)
     } else {
       payment.installmentCount = 0
       payment.originalPrincipal = 0
+      payment.initialPaidAmount = 0
       payment.remainingPrincipal = 0
+      payment.debtPayments = []
+      if (!payment.paid) payment.status = payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"
     }
-    if (!payment.paid) payment.status = payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"
     closeModal()
     showToast("Đã lưu thay đổi")
     render()
   }
-  bindMoneyInput(document.querySelector("#editPaymentForm [name='amount']"))
+  const editForm = document.getElementById("editPaymentForm")
+  bindCategoryPicker(editForm)
+  ;["amount", "originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => bindMoneyInput(editForm.elements[name]))
   const recurrenceInput = document.getElementById("editPaymentRecurrence")
   const installmentField = document.getElementById("editPaymentInstallmentField")
   const monthlyRange = document.getElementById("editPaymentMonthlyRange")
-  recurrenceInput.onchange = () => {
-    installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+  const debtSection = document.getElementById("editPaymentDebtSection")
+  const normalAmountField = editForm.querySelector(".normal-amount-field")
+  const estimate = document.getElementById("editPaymentDebtEstimate")
+  const updateEditMode = () => {
+    const debtLike = recurrenceInput.value === "MONTHLY_DEBT" || recurrenceInput.value === "INSTALLMENT"
+    installmentField.classList.toggle("hidden", !debtLike)
+    debtSection.classList.toggle("hidden", !debtLike)
+    normalAmountField.classList.toggle("hidden", debtLike)
+    editForm.elements.amount.required = !debtLike
+    editForm.elements.originalPrincipal.required = debtLike
+    editForm.elements.monthlyPayment.required = debtLike
     monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+    const original = parseMoney(editForm.elements.originalPrincipal.value)
+    const monthly = parseMoney(editForm.elements.monthlyPayment.value)
+    const paid = parseMoney(editForm.elements.initialPaidAmount.value) + (payment.debtPayments || []).reduce((sum, record) => sum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
+    const count = original && monthly ? Math.ceil(Math.max(0, original - paid) / monthly) : 0
+    if (debtLike && original && monthly) {
+      editForm.elements.installmentCount.value = String(Math.max(1, Math.ceil(original / monthly)))
+      estimate.textContent = `Dư nợ sau lịch sử hiện có: ${money(Math.max(0, original - paid))}. Dự kiến còn ${count} kỳ.`
+    }
   }
+  recurrenceInput.onchange = updateEditMode
+  ;["originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => editForm.elements[name].addEventListener("input", updateEditMode))
+  updateEditMode()
 }
 
 function deletePayment(id) {
@@ -1713,6 +2402,16 @@ function togglePaid(id) {
   const recurrence = payment.recurrence || "ONCE"
   const key = viewingMonth()
 
+  if (isDebtPayment(payment)) {
+    const existing = (payment.debtPayments || []).find(record => record.paymentPeriod === key)
+    if (existing) {
+      undoDebtPaymentRecord(id, existing.id, true)
+      return
+    }
+    openDebtPaymentModal(id, key)
+    return
+  }
+
   if (recurrence === "ONCE") {
     payment.paid = !payment.paid
     payment.status = payment.paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE")
@@ -1736,6 +2435,103 @@ function togglePaid(id) {
   const current = materializePaymentForMonth(payment, key) || payment
   showToast(current.paid ? "Đã đánh dấu thanh toán" : "Đã undo thanh toán")
   render()
+}
+
+function openDebtPaymentModal(id, period = viewingMonth(), extra = false) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+  const snapshot = DebtEngine.snapshot(payment)
+  if (snapshot.paidOff) {
+    showToast("Khoản nợ đã tất toán")
+    return
+  }
+  const scheduledAmount = snapshot.nextPaymentAmount
+  const dueDate = dueDateInMonth(payment.dueDate || dateForViewingMonth(), period)
+
+  openModal(`
+    <h2>${extra ? "Trả thêm" : "Xác nhận thanh toán"}</h2>
+    <form id="debtPaymentForm" class="form">
+      <div class="debt-next-box">
+        <div>
+          <span>Số tiền dự kiến</span>
+          <strong>${money(scheduledAmount)}</strong>
+        </div>
+        <div>
+          <span>Dư nợ còn lại</span>
+          <strong>${money(snapshot.remainingPrincipal)}</strong>
+        </div>
+      </div>
+      <div class="field">
+        <label>Bạn thực tế đã trả bao nhiêu?</label>
+        <input name="actualPaidAmount" inputmode="numeric" value="${formatNumberInput(scheduledAmount)}" required />
+      </div>
+      <div class="field">
+        <label>Ghi chú</label>
+        <input name="notes" placeholder="Ví dụ: trả thêm, trả thiếu, tất toán..." />
+      </div>
+      <div class="form-actions">
+        <button type="button" class="ghost" data-close>Hủy</button>
+        <button class="primary">Xác nhận đã trả</button>
+      </div>
+    </form>
+  `)
+
+  const amountInput = document.querySelector("#debtPaymentForm [name='actualPaidAmount']")
+  bindMoneyInput(amountInput)
+  document.getElementById("debtPaymentForm").onsubmit = event => {
+    event.preventDefault()
+    const form = new FormData(event.target)
+    const requested = parseMoney(form.get("actualPaidAmount"))
+    if (!requested) {
+      showToast("Nhập số tiền đã trả")
+      return
+    }
+    const principalPaid = Math.min(requested, snapshot.remainingPrincipal)
+    if (requested > snapshot.remainingPrincipal) {
+      showToast(`Dư nợ chỉ còn ${money(snapshot.remainingPrincipal)}`)
+    }
+    payment.debtPayments = Array.isArray(payment.debtPayments) ? payment.debtPayments : []
+    payment.debtPayments.push({
+      id: newId(),
+      debtID: payment.id,
+      scheduledAmount,
+      actualPaidAmount: principalPaid,
+      principalPaid,
+      interestPaid: 0,
+      feePaid: 0,
+      paidAt: new Date().toISOString(),
+      dueDate,
+      paymentPeriod: period,
+      notes: String(form.get("notes") || "").trim(),
+      createdAt: new Date().toISOString()
+    })
+    applyDebtDerivedState(payment)
+    closeModal()
+    showToast(DebtEngine.isPaidOff(payment) ? "Đã tất toán khoản nợ" : "Đã ghi nhận thanh toán")
+    render()
+  }
+}
+
+function applyDebtDerivedState(payment) {
+  const snapshot = DebtEngine.snapshot(payment)
+  payment.remainingPrincipal = snapshot.remainingPrincipal
+  payment.paidInstallmentCount = snapshot.paidPeriods.size
+  payment.status = snapshot.paidOff ? "PAID_OFF" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE")
+  payment.updatedAt = new Date().toISOString()
+}
+
+function undoDebtPaymentRecord(id, recordId, renderOnly = false) {
+  const payment = state.payments.find(item => item.id === id)
+  if (!payment) return
+  payment.debtPayments = (payment.debtPayments || []).filter(record => record.id !== recordId)
+  applyDebtDerivedState(payment)
+  showToast("Đã undo thanh toán")
+  if (renderOnly) {
+    render()
+  } else {
+    saveState()
+    openDebtDetailModal(id)
+  }
 }
 
 function openRecoveryKeyModal() {
@@ -1817,10 +2613,14 @@ function openPaymentModal() {
     <h2>Thêm khoản phải trả</h2>
     <form id="paymentForm" class="form">
       <div class="field">
+        <label>Loại khoản chi / khoản phải trả</label>
+        ${categorySelectButton()}
+      </div>
+      <div class="field">
         <label>Tên khoản</label>
         <input name="name" placeholder="Ví dụ: Tiền nhà, Trả góp laptop" required />
       </div>
-      <div class="field">
+      <div class="field normal-amount-field">
         <label>Số tiền</label>
         <input name="amount" inputmode="numeric" placeholder="4,000,000" required />
       </div>
@@ -1851,16 +2651,37 @@ function openPaymentModal() {
         </div>
       </div>
       <div class="field">
-        <label>Loại lặp lại</label>
+        <label>Loại thanh toán</label>
         <select name="recurrence" id="paymentRecurrence">
           <option value="ONCE">Một lần</option>
-          <option value="MONTHLY">Theo tháng</option>
+          <option value="MONTHLY">Định kỳ thông thường</option>
+          <option value="MONTHLY_DEBT">Khoản nợ trả hàng tháng</option>
           <option value="INSTALLMENT">Trả góp</option>
         </select>
       </div>
+      <section class="debt-form-section hidden" id="paymentDebtSection">
+        <div class="section-head compact-head"><h2>Thông tin khoản nợ</h2></div>
+        <div class="field">
+          <label>Tổng nợ ban đầu</label>
+          <input name="originalPrincipal" inputmode="numeric" placeholder="24,000,000" />
+        </div>
+        <div class="field">
+          <label>Số tiền đã trả trước đó</label>
+          <input name="initialPaidAmount" inputmode="numeric" placeholder="0" value="0" />
+        </div>
+        <div class="field">
+          <label>Số tiền phải trả mỗi tháng</label>
+          <input name="monthlyPayment" inputmode="numeric" placeholder="2,000,000" />
+        </div>
+        <div class="field">
+          <label>Ghi chú</label>
+          <input name="notes" placeholder="Optional" />
+        </div>
+        <div class="bank-line" id="paymentDebtEstimate">Nhập tổng nợ và số tiền hàng tháng để app tính số kỳ dự kiến.</div>
+      </section>
       <div class="field hidden" id="paymentInstallmentField">
-        <label>Số kỳ trả góp</label>
-        <input name="installmentCount" inputmode="numeric" placeholder="12" value="12" />
+        <label>Số kỳ dự kiến</label>
+        <input name="installmentCount" inputmode="numeric" placeholder="12" value="12" readonly />
       </div>
       <div class="field">
         <label>Trạng thái khoản</label>
@@ -1880,9 +2701,14 @@ function openPaymentModal() {
     event.preventDefault()
     const form = new FormData(event.target)
     const recurrence = form.get("recurrence")
+    const debtLike = recurrence === "MONTHLY_DEBT" || recurrence === "INSTALLMENT"
     const name = String(form.get("name") || "").trim()
-    const amount = parseMoney(form.get("amount"))
-    const installmentCount = recurrence === "INSTALLMENT" ? Math.max(1, parseMoney(form.get("installmentCount") || 12)) : 0
+    const normalAmount = parseMoney(form.get("amount"))
+    const originalPrincipal = parseMoney(form.get("originalPrincipal"))
+    const initialPaidAmount = parseMoney(form.get("initialPaidAmount"))
+    const monthlyPayment = parseMoney(form.get("monthlyPayment"))
+    const amount = debtLike ? monthlyPayment : normalAmount
+    const installmentCount = debtLike && monthlyPayment ? Math.max(1, Math.ceil(originalPrincipal / monthlyPayment)) : 0
     const monthlyStartMonth = form.get("monthlyStartMonth") || monthKey(form.get("dueDate")) || viewingMonth()
     const monthlyEndMonth = form.get("monthlyEndMonth") || monthlyStartMonth
     if (!name) {
@@ -1891,6 +2717,14 @@ function openPaymentModal() {
     }
     if (!amount) {
       showToast("Nhập số tiền lớn hơn 0")
+      return
+    }
+    if (debtLike && !originalPrincipal) {
+      showToast("Nhập tổng nợ ban đầu")
+      return
+    }
+    if (debtLike && initialPaidAmount > originalPrincipal) {
+      showToast("Số tiền đã trả không được vượt tổng nợ")
       return
     }
     if (recurrence === "MONTHLY" && monthNumber(monthlyEndMonth) < monthNumber(monthlyStartMonth)) {
@@ -1902,34 +2736,65 @@ function openPaymentModal() {
       id: newId(),
       name,
       amount,
+      monthlyPayment: debtLike ? monthlyPayment : 0,
+      initialPaidAmount: debtLike ? initialPaidAmount : 0,
       dueDate: recurrence === "MONTHLY"
         ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
         : (form.get("dueDate") || dateForViewingMonth()),
       createdAt: new Date().toISOString(),
-      recurrence,
+      recurrence: recurrence === "MONTHLY_DEBT" ? "INSTALLMENT" : recurrence,
+      paymentType: debtLike ? recurrence : (recurrence === "MONTHLY" ? "RECURRING" : "ONCE"),
       monthlyStartMonth: recurrence === "MONTHLY" ? monthlyStartMonth : "",
       monthlyEndMonth: recurrence === "MONTHLY" ? monthlyEndMonth : "",
       priority: form.get("priority"),
-      category: recurrence === "INSTALLMENT" ? "laptop" : "other",
+      category: legacyCategoryFor(form.get("categoryId")),
+      categoryId: form.get("categoryId"),
+      subcategory: form.get("subcategory"),
+      customCategory: form.get("customCategory"),
+      notes: String(form.get("notes") || "").trim(),
       status: form.get("priority") === "SKIPPABLE" ? "DEFERABLE" : "DUE",
       paid: false,
       paidMonths: {},
+      debtPayments: [],
       installmentCount,
-      originalPrincipal: installmentCount ? amount * installmentCount : 0,
-      remainingPrincipal: installmentCount ? amount * installmentCount : 0
+      originalPrincipal: debtLike ? originalPrincipal : 0,
+      remainingPrincipal: debtLike ? Math.max(0, originalPrincipal - initialPaidAmount) : 0
     }))
     closeModal()
     showToast("Đã thêm khoản phải trả")
     render()
   }
-  bindMoneyInput(document.querySelector("#paymentForm [name='amount']"))
+  const paymentForm = document.getElementById("paymentForm")
+  bindCategoryPicker(paymentForm)
+  ;["amount", "originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => bindMoneyInput(paymentForm.elements[name]))
   const recurrenceInput = document.getElementById("paymentRecurrence")
   const installmentField = document.getElementById("paymentInstallmentField")
   const monthlyRange = document.getElementById("paymentMonthlyRange")
-  recurrenceInput.onchange = () => {
-    installmentField.classList.toggle("hidden", recurrenceInput.value !== "INSTALLMENT")
+  const debtSection = document.getElementById("paymentDebtSection")
+  const normalAmountField = paymentForm.querySelector(".normal-amount-field")
+  const estimate = document.getElementById("paymentDebtEstimate")
+  const updatePaymentMode = () => {
+    const debtLike = recurrenceInput.value === "MONTHLY_DEBT" || recurrenceInput.value === "INSTALLMENT"
+    installmentField.classList.toggle("hidden", !debtLike)
+    debtSection.classList.toggle("hidden", !debtLike)
+    normalAmountField.classList.toggle("hidden", debtLike)
+    paymentForm.elements.amount.required = !debtLike
+    paymentForm.elements.originalPrincipal.required = debtLike
+    paymentForm.elements.monthlyPayment.required = debtLike
     monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+    const original = parseMoney(paymentForm.elements.originalPrincipal.value)
+    const monthly = parseMoney(paymentForm.elements.monthlyPayment.value)
+    const count = original && monthly ? Math.ceil(original / monthly) : 0
+    if (count) {
+      paymentForm.elements.installmentCount.value = String(count)
+      estimate.textContent = `Dự kiến ${count} kỳ. Kỳ cuối tối đa ${money(original - monthly * (count - 1))}.`
+    } else {
+      estimate.textContent = "Nhập tổng nợ và số tiền hàng tháng để app tính số kỳ dự kiến."
+    }
   }
+  recurrenceInput.onchange = updatePaymentMode
+  ;["originalPrincipal", "monthlyPayment"].forEach(name => paymentForm.elements[name].addEventListener("input", updatePaymentMode))
+  updatePaymentMode()
 }
 
 function openProfileModal() {
@@ -2524,7 +3389,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=28").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=29").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
