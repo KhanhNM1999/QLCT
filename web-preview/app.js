@@ -2119,7 +2119,7 @@ function openEditPaymentModal(id) {
           <span class="time-field-caret">${iconSvg("chevronDown")}</span>
         </div>
       </div>
-      <div class="dual-field ${payment.recurrence === "MONTHLY" ? "" : "hidden"}" id="editPaymentMonthlyRange">
+      <div class="dual-field monthly-range ${payment.recurrence === "MONTHLY" ? "" : "hidden"}" id="editPaymentMonthlyRange">
         <div class="field">
           <label>Tháng bắt đầu</label>
           <div class="time-field compact">
@@ -2676,7 +2676,7 @@ function openPaymentModal() {
           <span class="time-field-caret">${iconSvg("chevronDown")}</span>
         </div>
       </div>
-      <div class="dual-field hidden" id="paymentMonthlyRange">
+      <div class="dual-field monthly-range hidden" id="paymentMonthlyRange">
         <div class="field">
           <label>Tháng bắt đầu</label>
           <div class="time-field compact">
@@ -3426,7 +3426,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=30").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=31").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
