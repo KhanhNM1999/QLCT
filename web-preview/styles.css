@@ -384,14 +384,17 @@ strong {
   background: rgba(0, 137, 154, 0.08);
 }
 
+.is-auth .screen,
 .is-onboarding .screen {
   padding-bottom: 34px;
 }
 
+.is-auth .tabbar,
 .is-onboarding .tabbar {
   display: none;
 }
 
+.auth-screen,
 .onboarding {
   display: grid;
   align-content: center;
@@ -399,10 +402,12 @@ strong {
   gap: 14px;
 }
 
+.auth-screen .title,
 .onboarding .title {
   margin-top: 0;
 }
 
+.auth-card,
 .onboarding-card {
   display: grid;
   gap: 14px;
@@ -410,16 +415,19 @@ strong {
   padding: 16px;
 }
 
-.cloud-login-entry {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
+.auth-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(209, 222, 235, 0.8);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
 }
 
-.cloud-login-entry svg {
-  width: 19px;
-  height: 19px;
+.auth-note span {
+  color: var(--muted);
+  font-size: var(--text-detail);
+  line-height: 1.35;
 }
 
 .hero {
