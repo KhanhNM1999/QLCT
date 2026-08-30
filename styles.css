@@ -1658,12 +1658,22 @@ button:disabled {
 .field {
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .dual-field {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
+}
+
+.dual-field > .field {
+  min-width: 0;
+}
+
+.monthly-range {
+  grid-template-columns: 1fr;
 }
 
 .field label {
@@ -1702,6 +1712,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 24px;
   align-items: center;
+  min-width: 0;
   min-height: 52px;
   padding: 7px 12px 7px 8px;
   border: 1px solid rgba(191, 207, 222, 0.78);
@@ -1744,6 +1755,13 @@ button:disabled {
   width: 28px;
   height: 28px;
   border-radius: 11px;
+}
+
+.monthly-range .time-field.compact {
+  grid-template-columns: 34px minmax(0, 1fr) 22px;
+  min-height: 52px;
+  padding: 7px 12px 7px 8px;
+  border-radius: 18px;
 }
 
 .time-field-icon svg,
