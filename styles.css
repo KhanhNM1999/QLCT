@@ -850,6 +850,100 @@ button:disabled {
   color: var(--muted);
 }
 
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.choice-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 66px;
+  padding: 9px;
+  border: 1px solid rgba(209, 222, 235, 0.95);
+  border-radius: 17px;
+  color: var(--ink);
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%);
+  box-shadow: 0 8px 20px rgba(15, 38, 64, 0.05);
+  text-align: left;
+}
+
+.choice-card.selected {
+  border-color: rgba(0, 137, 154, 0.38);
+  background: linear-gradient(180deg, #ffffff 0%, #ecfbfc 100%);
+  box-shadow: 0 0 0 3px rgba(0, 137, 154, 0.08), 0 12px 26px rgba(15, 38, 64, 0.08);
+}
+
+.choice-card span:last-child {
+  min-width: 0;
+}
+
+.choice-card strong,
+.choice-card small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choice-card strong {
+  font-size: var(--text-detail);
+  line-height: 1.15;
+}
+
+.choice-card small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  line-height: 1.15;
+}
+
+.choice-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 14px;
+  color: #5f6e84;
+  background: #f2f5f8;
+  font-size: 13px;
+  font-weight: var(--weight-bold);
+}
+
+.choice-icon.green {
+  color: var(--green);
+  background: rgba(22, 163, 74, 0.11);
+}
+
+.choice-icon.blue {
+  color: var(--blue);
+  background: rgba(18, 107, 211, 0.1);
+}
+
+.choice-icon.orange {
+  color: var(--orange);
+  background: rgba(242, 132, 0, 0.11);
+}
+
+.choice-icon.purple {
+  color: var(--purple);
+  background: rgba(125, 61, 224, 0.1);
+}
+
+.choice-icon.red {
+  color: var(--red);
+  background: rgba(255, 48, 79, 0.1);
+}
+
 .category-emoji {
   font-size: 21px;
   line-height: 1;
