@@ -759,6 +759,23 @@ button:disabled {
   background: linear-gradient(180deg, #ffffff 0%, rgba(255, 48, 79, 0.05) 100%);
 }
 
+.auth-account-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(239, 248, 244, 0.9);
+}
+
+.auth-account-card strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inline-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 52px;
@@ -779,6 +796,12 @@ button:disabled {
 
 .sync-toggle {
   justify-content: start;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.35;
 }
 
 .category-select,
