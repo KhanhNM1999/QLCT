@@ -7,6 +7,8 @@ const LEGACY_STORAGE_KEYS = [
 ]
 const SUPABASE_TABLE = "qlct_app_states"
 const CLOUD_SYNC_DELAY = 900
+const DEFAULT_SUPABASE_URL = "https://hazrohmgttfzawhtowfqx.supabase.co"
+const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhenJvaG1ndGZ6YXdodG93ZnF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwNzgyNzMsImV4cCI6MjEwMzY1NDI3M30.wX2b7ZtNJ5MnA12Lfom1Ajnemmm3Sc6cFX8KpGqLPSs"
 
 const emptyState = {
   activeTab: "dashboard",
@@ -30,7 +32,12 @@ const emptyState = {
     supabaseLastSyncedAt: "",
     supabaseCloudUpdatedAt: "",
     supabaseSyncStatus: "off",
-    supabaseSyncError: ""
+    supabaseSyncError: "",
+    supabaseUserId: "",
+    supabaseUserEmail: "",
+    supabaseAccessToken: "",
+    supabaseRefreshToken: "",
+    supabaseTokenExpiresAt: 0
   },
   salary: null,
   payments: [],
@@ -366,15 +373,31 @@ function supabaseConfig() {
   const dataSafety = state.dataSafety || {}
   return {
     enabled: Boolean(dataSafety.supabaseEnabled),
-    url: String(dataSafety.supabaseUrl || "").trim().replace(/\/+$/g, ""),
-    anonKey: String(dataSafety.supabaseAnonKey || "").trim(),
+    url: String(dataSafety.supabaseUrl || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/g, ""),
+    anonKey: String(dataSafety.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY).trim(),
     syncId: String(dataSafety.supabaseSyncId || "").trim()
   }
 }
 
+function supabaseSession() {
+  const dataSafety = state.dataSafety || {}
+  return {
+    userId: String(dataSafety.supabaseUserId || ""),
+    email: String(dataSafety.supabaseUserEmail || ""),
+    accessToken: String(dataSafety.supabaseAccessToken || ""),
+    refreshToken: String(dataSafety.supabaseRefreshToken || ""),
+    expiresAt: Number(dataSafety.supabaseTokenExpiresAt || 0)
+  }
+}
+
+function isSupabaseSignedIn() {
+  const session = supabaseSession()
+  return Boolean(session.userId && session.accessToken)
+}
+
 function hasSupabaseConfig() {
   const config = supabaseConfig()
-  return Boolean(config.enabled && config.url && config.anonKey && config.syncId)
+  return Boolean(config.enabled && config.url && config.anonKey && (isSupabaseSignedIn() || config.syncId))
 }
 
 function publicDataSafety(dataSafety = {}) {
@@ -383,6 +406,9 @@ function publicDataSafety(dataSafety = {}) {
     supabaseAnonKey,
     supabaseSyncStatus,
     supabaseSyncError,
+    supabaseAccessToken,
+    supabaseRefreshToken,
+    supabaseTokenExpiresAt,
     ...safeDataSafety
   } = dataSafety
   return safeDataSafety
@@ -405,12 +431,42 @@ function supabaseRpcUrl(config, name) {
   return `${config.url}/rest/v1/rpc/${name}`
 }
 
+function supabaseAuthUrl(config, path) {
+  return `${config.url}/auth/v1/${path}`
+}
+
+async function refreshSupabaseSession(config) {
+  const session = supabaseSession()
+  if (!session.refreshToken) return false
+  const response = await fetch(supabaseAuthUrl(config, "token?grant_type=refresh_token"), {
+    method: "POST",
+    headers: {
+      apikey: config.anonKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ refresh_token: session.refreshToken })
+  })
+  if (!response.ok) return false
+  saveSupabaseSession(await response.json())
+  return true
+}
+
+async function ensureSupabaseSession(config) {
+  const session = supabaseSession()
+  if (!session.accessToken) return ""
+  if (session.expiresAt && Date.now() > session.expiresAt - 60000) {
+    await refreshSupabaseSession(config)
+  }
+  return supabaseSession().accessToken
+}
+
 async function supabaseFetch(config, endpoint, options = {}) {
+  const accessToken = await ensureSupabaseSession(config)
   const response = await fetch(endpoint, {
     ...options,
     headers: {
       apikey: config.anonKey,
-      Authorization: `Bearer ${config.anonKey}`,
+      Authorization: `Bearer ${accessToken || config.anonKey}`,
       "Content-Type": "application/json",
       ...(options.headers || {})
     }
@@ -422,6 +478,79 @@ async function supabaseFetch(config, endpoint, options = {}) {
   if (response.status === 204) return null
   const text = await response.text()
   return text ? JSON.parse(text) : null
+}
+
+async function supabaseAuthRequest(path, body, accessToken = "") {
+  const config = supabaseConfig()
+  const response = await fetch(supabaseAuthUrl(config, path), {
+    method: "POST",
+    headers: {
+      apikey: config.anonKey,
+      Authorization: `Bearer ${accessToken || config.anonKey}`,
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  })
+  const text = await response.text()
+  const data = text ? JSON.parse(text) : null
+  if (!response.ok) throw new Error(data?.msg || data?.message || `Supabase Auth HTTP ${response.status}`)
+  return data
+}
+
+function saveSupabaseSession(data = {}) {
+  const user = data.user || {}
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    supabaseEnabled: true,
+    supabaseUrl: supabaseConfig().url,
+    supabaseAnonKey: supabaseConfig().anonKey,
+    supabaseUserId: user.id || state.dataSafety?.supabaseUserId || "",
+    supabaseUserEmail: user.email || state.dataSafety?.supabaseUserEmail || "",
+    supabaseAccessToken: data.access_token || state.dataSafety?.supabaseAccessToken || "",
+    supabaseRefreshToken: data.refresh_token || state.dataSafety?.supabaseRefreshToken || "",
+    supabaseTokenExpiresAt: data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : Number(data.expires_at || 0) * 1000,
+    supabaseSyncStatus: "idle",
+    supabaseSyncError: ""
+  }
+  saveState({ skipCloud: true })
+}
+
+function clearSupabaseSession() {
+  state.dataSafety = {
+    ...emptyState.dataSafety,
+    ...(state.dataSafety || {}),
+    supabaseUserId: "",
+    supabaseUserEmail: "",
+    supabaseAccessToken: "",
+    supabaseRefreshToken: "",
+    supabaseTokenExpiresAt: 0,
+    supabaseSyncStatus: state.dataSafety?.supabaseEnabled ? "idle" : "off"
+  }
+  saveState({ skipCloud: true })
+}
+
+async function signUpSupabase(email, password) {
+  const data = await supabaseAuthRequest("signup", { email, password })
+  if (data?.access_token) saveSupabaseSession(data)
+  return data
+}
+
+async function signInSupabase(email, password) {
+  const data = await supabaseAuthRequest("token?grant_type=password", { email, password })
+  saveSupabaseSession(data)
+  return data
+}
+
+async function signOutSupabase() {
+  const session = supabaseSession()
+  if (session.accessToken) {
+    try {
+      await supabaseAuthRequest("logout", {}, session.accessToken)
+    } catch {
+    }
+  }
+  clearSupabaseSession()
 }
 
 function setCloudSyncStatus(status, error = "") {
@@ -449,9 +578,10 @@ function scheduleCloudSync() {
 async function fetchCloudRecord() {
   const config = supabaseConfig()
   if (!hasSupabaseConfig()) throw new Error("Thiếu cấu hình Supabase")
-  const rows = await supabaseFetch(config, supabaseRpcUrl(config, "qlct_get_state"), {
+  const signedIn = isSupabaseSignedIn()
+  const rows = await supabaseFetch(config, supabaseRpcUrl(config, signedIn ? "qlct_get_my_state" : "qlct_get_state"), {
     method: "POST",
-    body: JSON.stringify({ sync_secret: config.syncId })
+    body: JSON.stringify(signedIn ? {} : { sync_secret: config.syncId })
   })
   return Array.isArray(rows) && rows.length ? rows[0] : null
 }
@@ -463,10 +593,14 @@ async function pushCloudState(silent = false) {
     if (!silent) setCloudSyncStatus("syncing")
     const config = supabaseConfig()
     const now = new Date().toISOString()
-    await supabaseFetch(config, supabaseRpcUrl(config, "qlct_upsert_state"), {
+    const signedIn = isSupabaseSignedIn()
+    await supabaseFetch(config, supabaseRpcUrl(config, signedIn ? "qlct_upsert_my_state" : "qlct_upsert_state"), {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({
+      body: JSON.stringify(signedIn ? {
+        app_state: cloudPayload(),
+        saved_at: now
+      } : {
         sync_secret: config.syncId,
         app_state: cloudPayload(),
         saved_at: now
@@ -510,6 +644,11 @@ async function pullCloudState(silent = false) {
       supabaseUrl: currentConfig.url,
       supabaseAnonKey: currentConfig.anonKey,
       supabaseSyncId: currentConfig.syncId,
+      supabaseUserId: state.dataSafety?.supabaseUserId || "",
+      supabaseUserEmail: state.dataSafety?.supabaseUserEmail || "",
+      supabaseAccessToken: state.dataSafety?.supabaseAccessToken || "",
+      supabaseRefreshToken: state.dataSafety?.supabaseRefreshToken || "",
+      supabaseTokenExpiresAt: state.dataSafety?.supabaseTokenExpiresAt || 0,
       supabaseLastSyncedAt: new Date().toISOString(),
       supabaseCloudUpdatedAt: record.updated_at || "",
       supabaseSyncStatus: "synced",
@@ -2008,8 +2147,15 @@ function recoveryKeyText() {
 
 function supabaseSyncText() {
   const dataSafety = state.dataSafety || {}
+  if (isSupabaseSignedIn()) {
+    const email = supabaseSession().email || "tài khoản Supabase"
+    if (dataSafety.supabaseSyncStatus === "error") return `Lỗi: ${dataSafety.supabaseSyncError || "Không sync được"}`
+    if (dataSafety.supabaseSyncStatus === "syncing") return `Đang sync ${email}`
+    if (dataSafety.supabaseLastSyncedAt) return `${email} · đã sync ${formatDate(eventDate(dataSafety.supabaseLastSyncedAt))}`
+    return `${email} · chờ sync lần đầu`
+  }
   if (!dataSafety.supabaseEnabled) return "Chưa bật cloud sync"
-  if (!dataSafety.supabaseUrl || !dataSafety.supabaseAnonKey || !dataSafety.supabaseSyncId) return "Thiếu cấu hình Supabase"
+  if (!dataSafety.supabaseUrl || !dataSafety.supabaseAnonKey || !dataSafety.supabaseSyncId) return "Chưa đăng nhập hoặc thiếu mã sync"
   if (dataSafety.supabaseSyncStatus === "syncing") return "Đang sync Supabase"
   if (dataSafety.supabaseSyncStatus === "error") return `Lỗi: ${dataSafety.supabaseSyncError || "Không sync được"}`
   if (dataSafety.supabaseLastSyncedAt) return `Đã sync ${formatDate(eventDate(dataSafety.supabaseLastSyncedAt))}`
@@ -2057,6 +2203,7 @@ function settingsRow(icon, title, desc, action) {
 
 function openSupabaseSyncModal() {
   const config = supabaseConfig()
+  const session = supabaseSession()
   openModal(`
     <h2>Supabase Cloud Sync</h2>
     <form id="supabaseSyncForm" class="form">
@@ -2064,13 +2211,39 @@ function openSupabaseSyncModal() {
         <div class="list-icon blue">${iconSvg("upload")}</div>
         <div>
           <strong>${escapeHtml(supabaseSyncText())}</strong>
-          <div class="desc">Dùng một mã sync bí mật để đồng bộ snapshot giữa các thiết bị.</div>
+          <div class="desc">${isSupabaseSignedIn() ? "Dữ liệu cloud được gắn với tài khoản đăng nhập này." : "Đăng nhập để dữ liệu gắn với từng người dùng app."}</div>
         </div>
       </div>
       <label class="check-option sync-toggle">
         <input name="enabled" type="checkbox" ${config.enabled ? "checked" : ""} />
         <span>Bật Supabase sync</span>
       </label>
+      <section class="debt-form-section">
+        <div class="section-head compact-head"><h2>Tài khoản</h2></div>
+        ${isSupabaseSignedIn() ? `
+          <div class="auth-account-card">
+            <div class="list-icon green">${iconSvg("user")}</div>
+            <div>
+              <strong>${escapeHtml(session.email)}</strong>
+              <div class="desc">Đã đăng nhập Supabase Auth</div>
+            </div>
+          </div>
+          <button type="button" class="ghost" data-action="logout-supabase">Đăng xuất</button>
+        ` : `
+          <div class="field">
+            <label>Email</label>
+            <input name="authEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label>Mật khẩu</label>
+            <input name="authPassword" type="password" autocomplete="current-password" placeholder="Tối thiểu 6 ký tự" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="primary" data-action="login-supabase">Đăng nhập</button>
+            <button type="button" class="ghost" data-action="signup-supabase">Đăng ký</button>
+          </div>
+        `}
+      </section>
       <div class="field">
         <label>Supabase Project URL</label>
         <input name="url" placeholder="https://xxxxx.supabase.co" value="${escapeHtml(config.url)}" />
@@ -2085,6 +2258,7 @@ function openSupabaseSyncModal() {
           <input name="syncId" autocomplete="off" placeholder="Tự tạo hoặc nhập cùng mã trên máy khác" value="${escapeHtml(config.syncId)}" />
           <button type="button" class="ghost icon-only" data-action="generate-sync-id" aria-label="Tạo mã sync">${iconSvg("refresh")}</button>
         </div>
+        <small class="field-hint">Chỉ cần mã này nếu muốn dùng fallback không đăng nhập hoặc chuyển dữ liệu cũ.</small>
       </div>
       ${state.dataSafety?.supabaseSyncError ? `<div class="bank-line error-line">${escapeHtml(state.dataSafety.supabaseSyncError)}</div>` : ""}
       <div class="form-actions stack-actions">
@@ -2119,6 +2293,56 @@ function openSupabaseSyncModal() {
   form.querySelector("[data-action='generate-sync-id']").onclick = () => {
     form.elements.syncId.value = `qlct-${newId()}`
   }
+
+  const authValues = () => ({
+    email: String(form.elements.authEmail?.value || "").trim(),
+    password: String(form.elements.authPassword?.value || "")
+  })
+
+  form.querySelector("[data-action='login-supabase']")?.addEventListener("click", async () => {
+    saveConfigFromForm()
+    const { email, password } = authValues()
+    if (!email || !password) {
+      showToast("Nhập email và mật khẩu")
+      return
+    }
+    try {
+      await signInSupabase(email, password)
+      await pullCloudState(false)
+      closeModal()
+    } catch (error) {
+      setCloudSyncStatus("error", friendlySupabaseError(error))
+      showToast("Không đăng nhập được")
+    }
+  })
+
+  form.querySelector("[data-action='signup-supabase']")?.addEventListener("click", async () => {
+    saveConfigFromForm()
+    const { email, password } = authValues()
+    if (!email || password.length < 6) {
+      showToast("Nhập email và mật khẩu từ 6 ký tự")
+      return
+    }
+    try {
+      const data = await signUpSupabase(email, password)
+      if (data?.access_token) {
+        await pushCloudState(false)
+        closeModal()
+      } else {
+        showToast("Đã đăng ký, kiểm tra email xác nhận")
+      }
+    } catch (error) {
+      setCloudSyncStatus("error", friendlySupabaseError(error))
+      showToast("Không đăng ký được")
+    }
+  })
+
+  form.querySelector("[data-action='logout-supabase']")?.addEventListener("click", async () => {
+    await signOutSupabase()
+    showToast("Đã đăng xuất Supabase")
+    closeModal()
+    render()
+  })
 
   form.querySelector("[data-action='test-supabase']").onclick = async () => {
     saveConfigFromForm()
@@ -2157,7 +2381,7 @@ function openSupabaseSyncModal() {
       return
     }
     if (!hasSupabaseConfig()) {
-      showToast("Nhập đủ URL, anon key và mã sync")
+      showToast("Đăng nhập hoặc nhập mã sync")
       render()
       return
     }
@@ -3784,7 +4008,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=32").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=33").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
