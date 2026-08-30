@@ -1611,6 +1611,10 @@ function renderOnboarding() {
         </div>
         <button class="primary">Bắt đầu dùng app</button>
       </form>
+      <button type="button" class="primary cloud-login-entry" data-action="open-supabase-sync">
+        ${iconSvg("user")}
+        <span>Đăng nhập / đăng ký Supabase</span>
+      </button>
       <div class="form-actions stack-actions onboarding-restore">
         <button type="button" class="ghost" data-action="restore-key">Nhập mã khôi phục dữ liệu</button>
         <button type="button" class="ghost" data-action="restore">Khôi phục dữ liệu từ backup</button>
@@ -1626,6 +1630,10 @@ function bindOnboardingActions() {
 
   document.querySelectorAll("[data-action='restore-key']").forEach(button => {
     button.onclick = openRestoreKeyModal
+  })
+
+  document.querySelectorAll("[data-action='open-supabase-sync']").forEach(button => {
+    button.onclick = openSupabaseSyncModal
   })
 
   document.getElementById("onboardingForm").onsubmit = event => {
@@ -2166,7 +2174,7 @@ function renderSettings() {
   return `
     ${header("Cài đặt", "Dữ liệu và import")}
     <section class="section card">
-      ${settingsRow(iconSvg("upload"), "Supabase Cloud Sync", supabaseSyncText(), `<button class="link" data-action="open-supabase-sync">Mở</button>`)}
+      ${settingsRow(iconSvg(isSupabaseSignedIn() ? "user" : "upload"), "Supabase Cloud Sync", supabaseSyncText(), `<button class="link" data-action="open-supabase-sync">${isSupabaseSignedIn() ? "Quản lý" : "Đăng nhập"}</button>`)}
       ${settingsRow(iconSvg("shield"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
       ${settingsRow(iconSvg("key"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
       ${settingsRow(iconSvg("upload"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
@@ -4008,7 +4016,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=33").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=34").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
