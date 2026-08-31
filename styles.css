@@ -592,19 +592,43 @@ strong {
   gap: 8px;
   max-height: 520px;
   overflow: auto;
+  padding: 2px 2px 4px;
 }
 
 .bank-option {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: 52px minmax(0, 1fr) 24px;
+  column-gap: 12px;
   align-items: center;
-  padding: 10px;
+  min-height: 64px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: white;
   color: var(--ink);
   text-align: left;
+  overflow: hidden;
+}
+
+.bank-option .bank-logo {
+  justify-self: center;
+  align-self: center;
+  margin: 0;
+}
+
+.bank-option .bank-logo.small {
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+}
+
+.bank-option .bank-logo.has-image {
+  padding: 6px;
+}
+
+.bank-option .chevron {
+  justify-self: end;
+  margin: 0;
 }
 
 .bank-option.custom-bank {
