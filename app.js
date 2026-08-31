@@ -1444,7 +1444,16 @@ function statusHtml(payment) {
   return `<span class="status must">Phải trả đúng hạn</span>`
 }
 
-function render() {
+function scrollScreenToTop() {
+  const screen = document.querySelector(".screen")
+  if (!screen) return
+  screen.scrollTop = 0
+  requestAnimationFrame(() => {
+    screen.scrollTop = 0
+  })
+}
+
+function render(options = {}) {
   saveState()
   const needsAuth = !isSupabaseSignedIn()
   const isOnboarding = !needsAuth && !state.profile?.name
@@ -1458,12 +1467,14 @@ function render() {
   if (needsAuth) {
     document.getElementById("app").innerHTML = renderAuthScreen()
     bindAuthActions()
+    if (options.resetScroll) scrollScreenToTop()
     return
   }
 
   if (isOnboarding) {
     document.getElementById("app").innerHTML = renderOnboarding()
     bindOnboardingActions()
+    if (options.resetScroll) scrollScreenToTop()
     return
   }
 
@@ -1477,6 +1488,7 @@ function render() {
 
   document.getElementById("app").innerHTML = routes[state.activeTab]()
   bindScreenActions()
+  if (options.resetScroll) scrollScreenToTop()
 }
 
 function renderAuthScreen() {
@@ -2226,7 +2238,7 @@ function bindScreenActions() {
   document.querySelectorAll("[data-tab-go]").forEach(button => {
     button.onclick = () => {
       state.activeTab = button.dataset.tabGo
-      render()
+      render({ resetScroll: true })
     }
   })
 
@@ -3698,8 +3710,9 @@ function resetToEmpty() {
 
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
+    const changedTab = state.activeTab !== tab.dataset.tab
     state.activeTab = tab.dataset.tab
-    render()
+    render({ resetScroll: changedTab })
   }
 })
 
@@ -3717,7 +3730,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=42").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=43").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
