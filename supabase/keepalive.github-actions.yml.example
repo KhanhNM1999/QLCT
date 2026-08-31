@@ -11,13 +11,12 @@ jobs:
     steps:
       - name: Ping QLCT Supabase table
         run: |
-          curl -fsS "${SUPABASE_URL}/rest/v1/rpc/qlct_get_state" \
+          curl -fsS "${SUPABASE_URL}/rest/v1/rpc/qlct_login_user" \
             -X POST \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"sync_secret\":\"${SUPABASE_SYNC_ID}\"}"
+            -d '{"user_name":"keepalive","user_password":"invalid-keepalive-password"}' || true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SYNC_ID: ${{ secrets.SUPABASE_SYNC_ID }}
