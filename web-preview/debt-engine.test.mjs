@@ -3,8 +3,8 @@ import fs from "node:fs"
 import vm from "node:vm"
 
 const source = fs.readFileSync(new URL("./app.js", import.meta.url), "utf8")
-const engineSource = source.match(/const DebtEngine = [\s\S]*?\n}\n\nlet state/)?.[0].replace(/\n\nlet state$/, "")
-const moneyIntSource = source.match(/function moneyInt\(value\) \{[\s\S]*?\n\}/)?.[0]
+const engineSource = source.match(/const DebtEngine = [\s\S]*?\r?\n}\r?\n\r?\nlet state/)?.[0].replace(/\r?\n\r?\nlet state$/, "")
+const moneyIntSource = source.match(/function moneyInt\(value\) \{[\s\S]*?\r?\n\}/)?.[0]
 
 if (!engineSource || !moneyIntSource) {
   throw new Error("DebtEngine source not found")
