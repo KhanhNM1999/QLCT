@@ -2,7 +2,7 @@
   "name": "Lương & Tiết Kiệm",
   "short_name": "QLCT",
   "description": "App cá nhân để nhập lương, khoản phải trả và xem số tiền có thể tiết kiệm.",
-  "start_url": "./?v=39",
+  "start_url": "./?v=40",
   "scope": "./",
   "display": "standalone",
   "background_color": "#fbfdff",

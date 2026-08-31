@@ -6,7 +6,7 @@ const LEGACY_STORAGE_KEYS = [
   "luongTietKiem.preview.v1"
 ]
 const CLOUD_SYNC_DELAY = 900
-const DEFAULT_SUPABASE_URL = "https://hazrohmgttfzawhtowfqx.supabase.co"
+const DEFAULT_SUPABASE_URL = "https://hazrohmgtfzawhtowfqx.supabase.co"
 const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhenJvaG1ndGZ6YXdodG93ZnF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwNzgyNzMsImV4cCI6MjEwMzY1NDI3M30.wX2b7ZtNJ5MnA12Lfom1Ajnemmm3Sc6cFX8KpGqLPSs"
 
 const emptyState = {
@@ -3714,7 +3714,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=39").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=40").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
