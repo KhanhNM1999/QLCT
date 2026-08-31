@@ -5,7 +5,6 @@ const LEGACY_STORAGE_KEYS = [
   "luongTietKiem.preview.v2",
   "luongTietKiem.preview.v1"
 ]
-const SUPABASE_TABLE = "qlct_app_states"
 const CLOUD_SYNC_DELAY = 900
 const DEFAULT_SUPABASE_URL = "https://hazrohmgttfzawhtowfqx.supabase.co"
 const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhenJvaG1ndGZ6YXdodG93ZnF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwNzgyNzMsImV4cCI6MjEwMzY1NDI3M30.wX2b7ZtNJ5MnA12Lfom1Ajnemmm3Sc6cFX8KpGqLPSs"
@@ -21,24 +20,18 @@ const emptyState = {
     createdAt: ""
   },
   dataSafety: {
-    lastBackupAt: "",
-    lastRecoveryKeyAt: "",
     persistentStorage: false,
     persistentAskedAt: "",
     supabaseEnabled: false,
     supabaseUrl: "",
     supabaseAnonKey: "",
-    supabaseSyncId: "",
     supabaseLastSyncedAt: "",
     supabaseCloudUpdatedAt: "",
     supabaseSyncStatus: "off",
     supabaseSyncError: "",
     supabaseUserId: "",
     supabaseUsername: "",
-    supabaseUserEmail: "",
-    supabaseAccessToken: "",
-    supabaseRefreshToken: "",
-    supabaseTokenExpiresAt: 0
+    supabaseSessionToken: ""
   },
   salary: null,
   payments: [],
@@ -375,8 +368,7 @@ function supabaseConfig() {
   return {
     enabled: Boolean(dataSafety.supabaseEnabled),
     url: String(dataSafety.supabaseUrl || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/g, ""),
-    anonKey: String(dataSafety.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY).trim(),
-    syncId: String(dataSafety.supabaseSyncId || "").trim()
+    anonKey: String(dataSafety.supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY).trim()
   }
 }
 
@@ -385,22 +377,18 @@ function supabaseSession() {
   return {
     userId: String(dataSafety.supabaseUserId || ""),
     username: String(dataSafety.supabaseUsername || ""),
-    email: String(dataSafety.supabaseUserEmail || ""),
-    accessToken: String(dataSafety.supabaseAccessToken || ""),
-    refreshToken: String(dataSafety.supabaseRefreshToken || ""),
-    expiresAt: Number(dataSafety.supabaseTokenExpiresAt || 0)
+    sessionToken: String(dataSafety.supabaseSessionToken || "")
   }
 }
 
 function isSupabaseSignedIn() {
   const session = supabaseSession()
-  return Boolean(session.userId && session.accessToken)
+  return Boolean(session.userId && session.sessionToken)
 }
 
 function accountDisplayName() {
   const session = supabaseSession()
   if (session.username) return session.username
-  if (session.email) return session.email.split("@")[0]
   return "Bạn"
 }
 
@@ -412,13 +400,9 @@ function normalizeUsername(value) {
     .slice(0, 32)
 }
 
-function usernameToAuthEmail(username) {
-  return `${normalizeUsername(username)}@qlct.local`
-}
-
 function hasSupabaseConfig() {
   const config = supabaseConfig()
-  return Boolean(config.enabled && config.url && config.anonKey && (isSupabaseSignedIn() || config.syncId))
+  return Boolean(config.enabled && config.url && config.anonKey && isSupabaseSignedIn())
 }
 
 function publicDataSafety(dataSafety = {}) {
@@ -427,9 +411,7 @@ function publicDataSafety(dataSafety = {}) {
     supabaseAnonKey,
     supabaseSyncStatus,
     supabaseSyncError,
-    supabaseAccessToken,
-    supabaseRefreshToken,
-    supabaseTokenExpiresAt,
+    supabaseSessionToken,
     ...safeDataSafety
   } = dataSafety
   return safeDataSafety
@@ -441,53 +423,16 @@ function cloudPayload() {
   return payload
 }
 
-async function sha256Hex(value) {
-  if (!globalThis.crypto?.subtle) return String(value)
-  const bytes = new TextEncoder().encode(value)
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes)
-  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("")
-}
-
 function supabaseRpcUrl(config, name) {
   return `${config.url}/rest/v1/rpc/${name}`
 }
 
-function supabaseAuthUrl(config, path) {
-  return `${config.url}/auth/v1/${path}`
-}
-
-async function refreshSupabaseSession(config) {
-  const session = supabaseSession()
-  if (!session.refreshToken) return false
-  const response = await fetch(supabaseAuthUrl(config, "token?grant_type=refresh_token"), {
-    method: "POST",
-    headers: {
-      apikey: config.anonKey,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ refresh_token: session.refreshToken })
-  })
-  if (!response.ok) return false
-  saveSupabaseSession(await response.json())
-  return true
-}
-
-async function ensureSupabaseSession(config) {
-  const session = supabaseSession()
-  if (!session.accessToken) return ""
-  if (session.expiresAt && Date.now() > session.expiresAt - 60000) {
-    await refreshSupabaseSession(config)
-  }
-  return supabaseSession().accessToken
-}
-
 async function supabaseFetch(config, endpoint, options = {}) {
-  const accessToken = await ensureSupabaseSession(config)
   const response = await fetch(endpoint, {
     ...options,
     headers: {
       apikey: config.anonKey,
-      Authorization: `Bearer ${accessToken || config.anonKey}`,
+      Authorization: `Bearer ${config.anonKey}`,
       "Content-Type": "application/json",
       ...(options.headers || {})
     }
@@ -501,37 +446,16 @@ async function supabaseFetch(config, endpoint, options = {}) {
   return text ? JSON.parse(text) : null
 }
 
-async function supabaseAuthRequest(path, body, accessToken = "") {
-  const config = supabaseConfig()
-  const response = await fetch(supabaseAuthUrl(config, path), {
-    method: "POST",
-    headers: {
-      apikey: config.anonKey,
-      Authorization: `Bearer ${accessToken || config.anonKey}`,
-      "Content-Type": "application/json"
-    },
-    body: body ? JSON.stringify(body) : undefined
-  })
-  const text = await response.text()
-  const data = text ? JSON.parse(text) : null
-  if (!response.ok) throw new Error(data?.msg || data?.message || `Supabase Auth HTTP ${response.status}`)
-  return data
-}
-
 function saveSupabaseSession(data = {}) {
-  const user = data.user || {}
   state.dataSafety = {
     ...emptyState.dataSafety,
     ...(state.dataSafety || {}),
     supabaseEnabled: true,
     supabaseUrl: supabaseConfig().url,
     supabaseAnonKey: supabaseConfig().anonKey,
-    supabaseUserId: user.id || state.dataSafety?.supabaseUserId || "",
-    supabaseUsername: user.user_metadata?.username || state.dataSafety?.supabaseUsername || accountDisplayName(),
-    supabaseUserEmail: user.email || state.dataSafety?.supabaseUserEmail || "",
-    supabaseAccessToken: data.access_token || state.dataSafety?.supabaseAccessToken || "",
-    supabaseRefreshToken: data.refresh_token || state.dataSafety?.supabaseRefreshToken || "",
-    supabaseTokenExpiresAt: data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : Number(data.expires_at || 0) * 1000,
+    supabaseUserId: data.user_id || data.userId || state.dataSafety?.supabaseUserId || "",
+    supabaseUsername: data.username || state.dataSafety?.supabaseUsername || "",
+    supabaseSessionToken: data.session_token || data.sessionToken || state.dataSafety?.supabaseSessionToken || "",
     supabaseSyncStatus: "idle",
     supabaseSyncError: ""
   }
@@ -544,10 +468,7 @@ function clearSupabaseSession() {
     ...(state.dataSafety || {}),
     supabaseUserId: "",
     supabaseUsername: "",
-    supabaseUserEmail: "",
-    supabaseAccessToken: "",
-    supabaseRefreshToken: "",
-    supabaseTokenExpiresAt: 0,
+    supabaseSessionToken: "",
     supabaseSyncStatus: state.dataSafety?.supabaseEnabled ? "idle" : "off"
   }
   saveState({ skipCloud: true })
@@ -555,33 +476,43 @@ function clearSupabaseSession() {
 
 async function signUpSupabase(username, password) {
   const normalized = normalizeUsername(username)
-  const data = await supabaseAuthRequest("signup", {
-    email: usernameToAuthEmail(normalized),
-    password,
-    data: { username: normalized }
+  const config = supabaseConfig()
+  const rows = await supabaseFetch(config, supabaseRpcUrl(config, "qlct_register_user"), {
+    method: "POST",
+    body: JSON.stringify({
+      user_name: normalized,
+      user_password: password
+    })
   })
-  if (data?.access_token) {
-    saveSupabaseSession(data)
-    state.dataSafety.supabaseUsername = normalized
-    saveState({ skipCloud: true })
-  }
+  const data = Array.isArray(rows) ? rows[0] : rows
+  saveSupabaseSession(data)
   return data
 }
 
 async function signInSupabase(username, password) {
   const normalized = normalizeUsername(username)
-  const data = await supabaseAuthRequest("token?grant_type=password", { email: usernameToAuthEmail(normalized), password })
+  const config = supabaseConfig()
+  const rows = await supabaseFetch(config, supabaseRpcUrl(config, "qlct_login_user"), {
+    method: "POST",
+    body: JSON.stringify({
+      user_name: normalized,
+      user_password: password
+    })
+  })
+  const data = Array.isArray(rows) ? rows[0] : rows
   saveSupabaseSession(data)
-  state.dataSafety.supabaseUsername = normalized
-  saveState({ skipCloud: true })
   return data
 }
 
 async function signOutSupabase() {
   const session = supabaseSession()
-  if (session.accessToken) {
+  if (session.sessionToken) {
     try {
-      await supabaseAuthRequest("logout", {}, session.accessToken)
+      const config = supabaseConfig()
+      await supabaseFetch(config, supabaseRpcUrl(config, "qlct_logout_user"), {
+        method: "POST",
+        body: JSON.stringify({ session_token: session.sessionToken })
+      })
     } catch {
     }
   }
@@ -613,10 +544,9 @@ function scheduleCloudSync() {
 async function fetchCloudRecord() {
   const config = supabaseConfig()
   if (!hasSupabaseConfig()) throw new Error("Thiếu cấu hình Supabase")
-  const signedIn = isSupabaseSignedIn()
-  const rows = await supabaseFetch(config, supabaseRpcUrl(config, signedIn ? "qlct_get_my_state" : "qlct_get_state"), {
+  const rows = await supabaseFetch(config, supabaseRpcUrl(config, "qlct_get_session_state"), {
     method: "POST",
-    body: JSON.stringify(signedIn ? {} : { sync_secret: config.syncId })
+    body: JSON.stringify({ session_token: supabaseSession().sessionToken })
   })
   return Array.isArray(rows) && rows.length ? rows[0] : null
 }
@@ -628,15 +558,11 @@ async function pushCloudState(silent = false) {
     if (!silent) setCloudSyncStatus("syncing")
     const config = supabaseConfig()
     const now = new Date().toISOString()
-    const signedIn = isSupabaseSignedIn()
-    await supabaseFetch(config, supabaseRpcUrl(config, signedIn ? "qlct_upsert_my_state" : "qlct_upsert_state"), {
+    await supabaseFetch(config, supabaseRpcUrl(config, "qlct_upsert_session_state"), {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify(signedIn ? {
-        app_state: cloudPayload(),
-        saved_at: now
-      } : {
-        sync_secret: config.syncId,
+      body: JSON.stringify({
+        session_token: supabaseSession().sessionToken,
         app_state: cloudPayload(),
         saved_at: now
       })
@@ -691,13 +617,9 @@ async function pullCloudState(silent = false) {
       supabaseEnabled: true,
       supabaseUrl: currentConfig.url,
       supabaseAnonKey: currentConfig.anonKey,
-      supabaseSyncId: currentConfig.syncId,
       supabaseUserId: state.dataSafety?.supabaseUserId || "",
       supabaseUsername: state.dataSafety?.supabaseUsername || "",
-      supabaseUserEmail: state.dataSafety?.supabaseUserEmail || "",
-      supabaseAccessToken: state.dataSafety?.supabaseAccessToken || "",
-      supabaseRefreshToken: state.dataSafety?.supabaseRefreshToken || "",
-      supabaseTokenExpiresAt: state.dataSafety?.supabaseTokenExpiresAt || 0,
+      supabaseSessionToken: state.dataSafety?.supabaseSessionToken || "",
       supabaseLastSyncedAt: new Date().toISOString(),
       supabaseCloudUpdatedAt: record.updated_at || "",
       supabaseSyncStatus: "synced",
@@ -728,7 +650,8 @@ function friendlySupabaseError(error) {
   const message = String(error?.message || error || "")
   if (message.includes("Failed to fetch")) return "Không kết nối được Supabase"
   if (message.includes("JWT")) return "Anon key không hợp lệ"
-  if (message.includes(SUPABASE_TABLE)) return `Chưa tạo bảng ${SUPABASE_TABLE}`
+  if (message.includes("Could not find the function")) return "Chưa chạy SQL Supabase mới"
+  if (message.includes("permission denied")) return "Supabase chưa cấp quyền RPC"
   if (message.length > 110) return `${message.slice(0, 107)}...`
   return message || "Lỗi Supabase"
 }
@@ -1093,38 +1016,6 @@ function legacyCategoryFor(categoryId) {
     other_payable: "other",
     custom: "other"
   }[categoryId] || "other"
-}
-
-function base64UrlEncode(text) {
-  const bytes = new TextEncoder().encode(text)
-  let binary = ""
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i])
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
-}
-
-function base64UrlDecode(value) {
-  const normalized = String(value || "").trim().replace(/^QLCT-KEY-/i, "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/")
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
-  const binary = atob(padded)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
-  return new TextDecoder().decode(bytes)
-}
-
-function makeRecoveryCode() {
-  const payload = {
-    app: "QLCT",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    state
-  }
-  return `QLCT-KEY-${base64UrlEncode(JSON.stringify(payload))}`
-}
-
-function parseRecoveryCode(code) {
-  const payload = JSON.parse(base64UrlDecode(code))
-  if (payload?.app !== "QLCT" || !payload.state) throw new Error("Invalid recovery code")
-  return normalizeState(payload.state)
 }
 
 function pct(value, total = salaryForViewingMonth()?.amount || 0) {
@@ -1629,8 +1520,8 @@ function bindAuthActions() {
     try {
       if (mode === "signup") {
         const data = await signUpSupabase(username, password)
-        if (!data?.access_token) {
-          showToast("Đã đăng ký, cần tắt xác nhận tài khoản trong Supabase")
+        if (!data?.session_token) {
+          showToast("Không tạo được phiên đăng nhập")
           return
         }
       } else {
@@ -1734,23 +1625,11 @@ function renderOnboarding() {
         </div>
         <button class="primary">Bắt đầu dùng app</button>
       </form>
-      <div class="form-actions stack-actions onboarding-restore">
-        <button type="button" class="ghost" data-action="restore-key">Nhập mã khôi phục dữ liệu</button>
-        <button type="button" class="ghost" data-action="restore">Khôi phục dữ liệu từ backup</button>
-      </div>
     </section>
   `
 }
 
 function bindOnboardingActions() {
-  document.querySelectorAll("[data-action='restore']").forEach(button => {
-    button.onclick = importJson
-  })
-
-  document.querySelectorAll("[data-action='restore-key']").forEach(button => {
-    button.onclick = openRestoreKeyModal
-  })
-
   document.getElementById("onboardingForm").onsubmit = event => {
     event.preventDefault()
     const form = new FormData(event.target)
@@ -2153,7 +2032,7 @@ function renderAnalytics() {
     <section class="section">
       <div class="section-head">
         <h2>Lịch sử theo tháng</h2>
-        <button class="link icon-link" data-action="backup"><span>Sao lưu</span>${iconSvg("chevronRight")}</button>
+        <span class="muted">${safeText(accountSettingsText())}</span>
       </div>
       ${history.length ? `<div class="card list">${history.map(historyRow).join("")}</div>` : emptyCard(
         iconSvg("calendar"),
@@ -2166,7 +2045,7 @@ function renderAnalytics() {
     <section class="section">
       <div class="section-head">
         <h2>Dòng thời gian</h2>
-        <button class="link icon-link" data-action="backup"><span>Export</span>${iconSvg("chevronRight")}</button>
+        <span class="muted">Cloud sync</span>
       </div>
       ${events.length ? `<div class="card list">${events.map(historyEventRow).join("")}</div>` : emptyCard(
         iconSvg("calendar"),
@@ -2260,12 +2139,8 @@ function analysisLine(icon, label, value, total, color) {
 
 function dataSafetyText() {
   const persistent = state.dataSafety?.persistentStorage ? "Lưu bền đã bật" : "Lưu bền chưa bật"
-  const backup = state.dataSafety?.lastBackupAt ? `Backup ${formatDate(eventDate(state.dataSafety.lastBackupAt))}` : "Chưa có backup"
-  return `${persistent} · ${backup}`
-}
-
-function recoveryKeyText() {
-  return state.dataSafety?.lastRecoveryKeyAt ? `Tạo lần cuối ${formatDate(eventDate(state.dataSafety.lastRecoveryKeyAt))}` : "Chưa tạo mã"
+  const synced = state.dataSafety?.supabaseLastSyncedAt ? `Sync ${formatDate(eventDate(state.dataSafety.supabaseLastSyncedAt))}` : "Chưa sync"
+  return `${persistent} · ${synced}`
 }
 
 function renderSettings() {
@@ -2274,13 +2149,9 @@ function renderSettings() {
     <section class="section card">
       ${settingsRow(iconSvg("user"), "Tài khoản", accountSettingsText(), `<button class="link" data-action="open-account">Mở</button>`)}
       ${settingsRow(iconSvg("shield"), "Bảo vệ dữ liệu", dataSafetyText(), `<button class="link" data-action="protect-storage">Bật</button>`)}
-      ${settingsRow(iconSvg("key"), "Mã khôi phục", recoveryKeyText(), `<button class="link" data-action="recovery-key">Tạo</button>`)}
-      ${settingsRow(iconSvg("upload"), "Nhập mã khôi phục", "Dùng khi cài lại app hoặc đổi máy", `<button class="link" data-action="restore-key">Nhập</button>`)}
       ${settingsRow(iconSvg("user"), "Hồ sơ", `${userName()} · App cá nhân`, `<button class="link" data-action="edit-profile">Sửa</button>`)}
       ${settingsRow(iconSvg("wallet"), "Nhập lương", "Nhập tay hoặc paste tin nhắn ngân hàng", `<button class="link" data-action="open-import">Mở</button>`)}
       ${settingsRow(iconSvg("bank"), "Danh mục ngân hàng", "Danh sách ngân hàng để chọn khi nhận diện lương", `<button class="link" data-action="open-bank-directory">Mở</button>`)}
-      ${settingsRow(iconSvg("download"), "Sao lưu dữ liệu", "Export JSON local", `<button class="link" data-action="backup">Export</button>`)}
-      ${settingsRow(iconSvg("upload"), "Khôi phục dữ liệu", "Import file backup JSON từ máy cũ", `<button class="link" data-action="restore">Import</button>`)}
       ${settingsRow(iconSvg("refresh"), "Load sample data", "Chỉ dùng để xem mockup/demo", `<button class="link" data-action="load-sample">Load</button>`)}
       ${settingsRow(iconSvg("trash"), "Đưa app về trắng", "Xóa dữ liệu trên máy này và chạy lại onboarding", `<button class="link red" data-action="reset-empty">Reset</button>`)}
     </section>
@@ -2389,22 +2260,6 @@ function bindScreenActions() {
 
   document.querySelectorAll("[data-action='load-sample']").forEach(button => {
     button.onclick = loadSample
-  })
-
-  document.querySelectorAll("[data-action='backup']").forEach(button => {
-    button.onclick = exportJson
-  })
-
-  document.querySelectorAll("[data-action='restore']").forEach(button => {
-    button.onclick = importJson
-  })
-
-  document.querySelectorAll("[data-action='recovery-key']").forEach(button => {
-    button.onclick = openRecoveryKeyModal
-  })
-
-  document.querySelectorAll("[data-action='restore-key']").forEach(button => {
-    button.onclick = openRestoreKeyModal
   })
 
   document.querySelectorAll("[data-action='protect-storage']").forEach(button => {
@@ -3118,79 +2973,6 @@ function undoDebtPaymentRecord(id, recordId, renderOnly = false) {
   }
 }
 
-function openRecoveryKeyModal() {
-  state.dataSafety = {
-    ...emptyState.dataSafety,
-    ...(state.dataSafety || {}),
-    lastRecoveryKeyAt: new Date().toISOString()
-  }
-  saveState()
-  const code = makeRecoveryCode()
-
-  openModal(`
-    <h2>Mã khôi phục dữ liệu</h2>
-    <div class="form">
-      <div class="field">
-        <label>Lưu mã này ở nơi riêng</label>
-        <textarea id="recoveryCodeOutput" readonly>${code}</textarea>
-      </div>
-      <div class="note-card compact-note">
-        <strong>Mã này chứa toàn bộ dữ liệu hiện tại</strong>
-        <span>Sau khi thêm/sửa/xóa dữ liệu quan trọng, hãy tạo mã mới. Nếu gỡ app, nhập lại mã này để khôi phục snapshot đã lưu trong mã.</span>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="primary" data-action="copy-recovery-key">Copy mã</button>
-        <button type="button" class="ghost" data-close>Đóng</button>
-      </div>
-    </div>
-  `)
-
-  document.querySelector("[data-action='copy-recovery-key']").onclick = async () => {
-    const text = document.getElementById("recoveryCodeOutput").value
-    try {
-      await navigator.clipboard.writeText(text)
-      showToast("Đã copy mã khôi phục")
-    } catch {
-      document.getElementById("recoveryCodeOutput").select()
-      showToast("Chọn mã rồi copy thủ công")
-    }
-  }
-}
-
-function openRestoreKeyModal() {
-  openModal(`
-    <h2>Nhập mã khôi phục</h2>
-    <div class="form">
-      <div class="field">
-        <label>Mã khôi phục</label>
-        <textarea id="recoveryCodeInput" placeholder="Dán mã bắt đầu bằng QLCT-KEY-"></textarea>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="primary" data-action="apply-recovery-key">Khôi phục</button>
-        <button type="button" class="ghost" data-close>Đóng</button>
-      </div>
-    </div>
-  `)
-
-  document.querySelector("[data-action='apply-recovery-key']").onclick = () => {
-    const code = document.getElementById("recoveryCodeInput").value
-    try {
-      const restored = parseRecoveryCode(code)
-      if (!restored.profile.name) {
-        showToast("Mã thiếu hồ sơ")
-        return
-      }
-      state = restored
-      saveState()
-      closeModal()
-      showToast("Đã khôi phục dữ liệu từ mã")
-      render()
-    } catch {
-      showToast("Mã khôi phục không hợp lệ")
-    }
-  }
-}
-
 function openPaymentModal() {
   const today = isViewingCurrentMonth() ? new Date().toISOString().slice(0, 10) : `${viewingMonth()}-01`
   openModal(`
@@ -3896,53 +3678,19 @@ function loadSample() {
 }
 
 function resetToEmpty() {
-  ;[STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach(key => localStorage.removeItem(key))
-  state = clone(emptyState)
-  showToast("Đã đưa app về trắng")
+  const currentDataSafety = { ...emptyState.dataSafety, ...(state.dataSafety || {}) }
+  state = normalizeState({
+    ...clone(emptyState),
+    activeTab: "dashboard",
+    selectedMonth: currentMonthKey(),
+    profile: {
+      name: accountDisplayName(),
+      createdAt: new Date().toISOString()
+    },
+    dataSafety: currentDataSafety
+  })
+  showToast("Đã đưa dữ liệu tài khoản về trắng")
   render()
-}
-
-function exportJson() {
-  state.dataSafety = {
-    ...emptyState.dataSafety,
-    ...(state.dataSafety || {}),
-    lastBackupAt: new Date().toISOString()
-  }
-  saveState()
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = "luong-tiet-kiem-backup.json"
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function importJson() {
-  const input = document.createElement("input")
-  input.type = "file"
-  input.accept = "application/json,.json"
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      try {
-        state = normalizeState(JSON.parse(reader.result))
-        if (!state.profile.name) {
-          showToast("File thiếu tên hồ sơ")
-          return
-        }
-        showToast("Đã khôi phục dữ liệu")
-        render()
-      } catch {
-        showToast("File backup không hợp lệ")
-      }
-    }
-    reader.readAsText(file)
-  }
-  input.click()
 }
 
 document.querySelectorAll(".tab").forEach(tab => {
@@ -3966,7 +3714,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=38").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=39").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }

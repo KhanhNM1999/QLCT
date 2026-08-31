@@ -23,6 +23,6 @@ Preview hỗ trợ:
 - Thêm khoản phải trả.
 - Tick/undo checklist.
 - Paste notification TPBank/HSBC và nhận diện lương.
-- Export JSON backup demo.
+- Username login/register with Supabase-backed cloud data per account.
 
 Lưu ý: đây không phải iOS Simulator thật. Windows không chạy được iOS Simulator của Apple. Bản này là PC preview để test UI/flow nhanh trước khi build IPA bằng GitHub Actions macOS.
