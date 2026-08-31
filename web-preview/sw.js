@@ -1,13 +1,13 @@
-﻿const CACHE_NAME = "qlct-shell-v43"
+﻿const CACHE_NAME = "qlct-shell-v44"
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=43",
-  "./bank-directory.js?v=43",
-  "./app.js?v=43",
-  "./manifest.webmanifest?v=43",
-  "./assets/app-icon-180.png?v=43",
-  "./assets/app-icon-512.png?v=43"
+  "./styles.css?v=44",
+  "./bank-directory.js?v=44",
+  "./app.js?v=44",
+  "./manifest.webmanifest?v=44",
+  "./assets/app-icon-180.png?v=44",
+  "./assets/app-icon-512.png?v=44"
 ]
 
 self.addEventListener("install", event => {

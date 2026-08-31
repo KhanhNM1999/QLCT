@@ -1266,6 +1266,15 @@ function dueAmount(payment) {
   return Number(payment.amount || 0)
 }
 
+function paidAmountForViewingMonth(payment) {
+  if (isDebtPayment(payment)) {
+    return (payment.debtPayments || [])
+      .filter(record => record.paymentPeriod === viewingMonth())
+      .reduce((sum, record) => sum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
+  }
+  return payment.paid ? Number(payment.amount || 0) : 0
+}
+
 function finance() {
   const monthPayments = paymentsForViewingMonth()
   const monthSalary = salaryForViewingMonth()
@@ -1282,16 +1291,15 @@ function finance() {
   const remainingSkippable = monthPayments
     .filter(payment => payment.priority === "SKIPPABLE")
     .reduce((sum, payment) => sum + dueAmount(payment), 0)
-  const paidThisMonth = monthPayments.reduce((sum, payment) => {
-    if (isDebtPayment(payment)) {
-      return sum + (payment.debtPayments || [])
-        .filter(record => record.paymentPeriod === viewingMonth())
-        .reduce((recordSum, record) => recordSum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
-    }
-    return sum + (payment.paid ? Number(payment.amount || 0) : 0)
-  }, 0)
-  const availableAfterMandatory = monthlyIncome - remainingMandatory
-  const availableAfterBills = monthlyIncome - remainingMandatory - remainingSkippable
+  const paidMandatory = monthPayments
+    .filter(payment => payment.priority === "MUST_PAY")
+    .reduce((sum, payment) => sum + paidAmountForViewingMonth(payment), 0)
+  const paidSkippable = monthPayments
+    .filter(payment => payment.priority === "SKIPPABLE")
+    .reduce((sum, payment) => sum + paidAmountForViewingMonth(payment), 0)
+  const paidThisMonth = paidMandatory + paidSkippable
+  const availableAfterMandatory = monthlyIncome - paidMandatory - remainingMandatory
+  const availableAfterBills = monthlyIncome - paidThisMonth - remainingMandatory - remainingSkippable
   const debtSummary = debtPortfolioSummary()
   const totalOutstandingDebt = debtSummary.remaining
 
@@ -1300,6 +1308,8 @@ function finance() {
     monthSalary,
     mandatoryDue,
     skippableDue,
+    paidMandatory,
+    paidSkippable,
     paidThisMonth,
     remainingMandatory,
     remainingSkippable,
@@ -3730,7 +3740,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=43").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=44").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
