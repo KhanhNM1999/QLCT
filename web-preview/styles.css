@@ -1443,6 +1443,12 @@ button:disabled {
   padding-bottom: 4px;
 }
 
+.month-scope-note {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
 .segment,
 .chip {
   flex: 1;

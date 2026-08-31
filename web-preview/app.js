@@ -1062,6 +1062,18 @@ function paymentsForViewingMonth() {
     .filter(Boolean)
 }
 
+function isFlexibleSkippable(payment) {
+  return payment.priority === "SKIPPABLE" && !isDebtPayment(payment)
+}
+
+function skippablePaidMonth(payment) {
+  const paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
+  const months = Object.keys(paidMonths).filter(month => paidMonths[month]).sort()
+  if (months.length) return months[0]
+  if (payment.paid) return monthKey(payment.paidAt || payment.updatedAt || payment.dueDate || payment.createdAt)
+  return ""
+}
+
 function paymentOccurrenceMonths(payment) {
   const baseDate = eventDate(payment.dueDate || payment.createdAt)
   if (!baseDate) return []
@@ -1070,6 +1082,14 @@ function paymentOccurrenceMonths(payment) {
     ? (payment.monthlyStartMonth || monthKey(baseDate))
     : monthKey(baseDate)
   const recurrence = payment.recurrence || "ONCE"
+  if (isFlexibleSkippable(payment)) {
+    const paidMonth = skippablePaidMonth(payment)
+    const endMonthNumber = paidMonth
+      ? Math.max(monthNumber(startMonth), monthNumber(paidMonth))
+      : Math.max(monthNumber(currentMonthKey()), monthNumber(viewingMonth()))
+    const count = Math.max(0, endMonthNumber - monthNumber(startMonth) + 1)
+    return Array.from({ length: count }, (_, index) => addMonths(startMonth, index))
+  }
   if (recurrence === "ONCE") return [startMonth]
 
   const paidMonths = Object.keys(payment.paidMonths || {})
@@ -1132,11 +1152,15 @@ function materializePaymentForMonth(payment, key) {
 
   const recurrence = payment.recurrence || "ONCE"
   const debtLike = isDebtPayment(payment)
+  const flexibleSkippable = isFlexibleSkippable(payment)
   const startMonth = recurrence === "MONTHLY"
     ? (payment.monthlyStartMonth || monthKey(baseDate))
     : monthKey(baseDate)
   const offset = monthOffset(startMonth, key)
-  if (recurrence === "ONCE" && startMonth !== key) return null
+  if (flexibleSkippable) {
+    const paidMonth = skippablePaidMonth(payment)
+    if (offset < 0 || (paidMonth && monthNumber(key) > monthNumber(paidMonth))) return null
+  } else if (recurrence === "ONCE" && startMonth !== key) return null
   if (recurrence === "MONTHLY") {
     const endMonth = payment.monthlyEndMonth || addMonths(startMonth, 11)
     if (offset < 0 || monthNumber(key) > monthNumber(endMonth)) return null
@@ -1154,6 +1178,8 @@ function materializePaymentForMonth(payment, key) {
 
   const paid = debtLike
     ? debtPaidThisPeriod
+    : flexibleSkippable
+    ? skippablePaidMonth(payment) === key
     : recurrence === "ONCE"
     ? Boolean(payment.paid || payment.status === "PAID")
     : Boolean(paidMonths[key])
@@ -1174,7 +1200,7 @@ function materializePaymentForMonth(payment, key) {
     ...payment,
     baseId: payment.id,
     occurrenceKey: key,
-    dueDate: recurrence === "ONCE" ? baseDate : dueDateInMonth(baseDate, key),
+    dueDate: flexibleSkippable ? "" : recurrence === "ONCE" ? baseDate : dueDateInMonth(baseDate, key),
     amount: displayAmount,
     paid,
     status: debtLike && debtSnapshot.paidOff ? "PAID_OFF" : paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE"),
@@ -1249,6 +1275,7 @@ function paymentTypeLabel(payment) {
 function alertablePaymentsForViewingMonth() {
   const today = new Date().toISOString().slice(0, 10)
   return sortPayments(paymentsForViewingMonth().filter(payment => {
+    if (payment.priority === "SKIPPABLE") return false
     if (payment.paid || payment.status === "PAID") return false
     return dueDateValue(payment) <= today
   }))
@@ -1363,6 +1390,8 @@ function filteredPayments() {
 }
 
 function checklistPayments() {
+  if (!isViewingCurrentMonth()) return sortPayments(paymentsForViewingMonth())
+
   const [viewYear, viewMonth] = viewingMonth().split("-").map(Number)
   const startDay = state.checklistFilter === "today" && isViewingCurrentMonth() ? new Date().getDate() : 1
   const start = new Date(viewYear, viewMonth - 1, startDay)
@@ -1376,6 +1405,7 @@ function checklistPayments() {
   }
 
   return sortPayments(paymentsForViewingMonth().filter(payment => {
+    if (payment.priority === "SKIPPABLE") return true
     const due = new Date(payment.dueDate || payment.createdAt || new Date())
     return due >= start && due < end
   }))
@@ -1858,6 +1888,7 @@ function metric(icon, label, value, sub) {
 function paymentRow(payment) {
   const debt = isDebtPayment(payment)
   const debtSnapshot = debt ? DebtEngine.snapshot(payment) : null
+  const dateText = payment.priority === "SKIPPABLE" ? "Linh hoạt, có thể dời" : `Hạn ${formatDate(payment.dueDate)}`
   const meta = debt
     ? `Đã trả ${debtSnapshot.progress.toFixed(1).replace(".", ",")}% · còn ${money(debtSnapshot.remainingPrincipal)}`
     : payment.recurrence === "INSTALLMENT"
@@ -1873,7 +1904,7 @@ function paymentRow(payment) {
           <div class="row-amount">${money(payment.amount)}</div>
         </div>
         <div class="row-line row-line-bottom">
-          <div class="row-date">Hạn ${formatDate(payment.dueDate)}</div>
+          <div class="row-date ${payment.priority === "SKIPPABLE" ? "orange" : ""}">${dateText}</div>
           <div class="row-sub">${meta}</div>
         </div>
         ${statusHtml(payment)}
@@ -1886,6 +1917,7 @@ function paymentRow(payment) {
 function checklistRow(payment) {
   const debt = isDebtPayment(payment)
   const debtSnapshot = debt ? DebtEngine.snapshot(payment) : null
+  const dateText = payment.priority === "SKIPPABLE" ? "Linh hoạt, có thể dời" : `Hạn ${formatDate(payment.dueDate)}`
   const meta = debt
     ? `${payment.paid ? "Đã ghi nhận" : `Còn nợ ${money(debtSnapshot.remainingPrincipal)}`}`
     : payment.recurrence === "INSTALLMENT"
@@ -1901,7 +1933,7 @@ function checklistRow(payment) {
           <div class="row-amount">${money(payment.amount)}</div>
         </div>
         <div class="row-line row-line-bottom">
-          <div class="row-date ${payment.priority === "SKIPPABLE" ? "orange" : ""}">Hạn ${formatDate(payment.dueDate)}</div>
+          <div class="row-date ${payment.priority === "SKIPPABLE" ? "orange" : ""}">${dateText}</div>
           <div class="row-sub">${meta}</div>
         </div>
       </div>
@@ -1973,14 +2005,15 @@ function renderPayments() {
 function renderChecklist() {
   const payments = checklistPayments()
   const done = payments.filter(payment => payment.paid).length
+  const currentMonth = isViewingCurrentMonth()
   return `
     ${header("Checklist thanh toán", `Quản lý các khoản phải trả đúng hạn, ${userName()}`)}
     ${monthSelector()}
-    <div class="segmented section">
+    ${currentMonth ? `<div class="segmented section">
       <button class="segment ${state.checklistFilter === "today" ? "active" : ""}" data-filter="today">Hôm nay</button>
       <button class="segment ${state.checklistFilter === "week" ? "active" : ""}" data-filter="week">Tuần này</button>
       <button class="segment ${state.checklistFilter === "month" ? "active" : ""}" data-filter="month">Tháng này</button>
-    </div>
+    </div>` : `<div class="section month-scope-note">Tất cả khoản cần trả trong ${monthLabel(viewingMonth())}</div>`}
     <section class="hero">
       <div class="hero-grid" style="grid-template-columns:repeat(3,1fr)">
         ${metric(iconSvg("list"), "Tổng checklist", payments.length, "khoản")}
@@ -2402,13 +2435,16 @@ function openPaymentDetailModal(id) {
     return
   }
   const payment = materializePaymentForMonth(basePayment, viewingMonth()) || basePayment
+  const dateDetail = payment.priority === "SKIPPABLE"
+    ? `<div class="detail-box"><span>Thời hạn</span><strong>Linh hoạt</strong></div>`
+    : `<div class="detail-box"><span>Ngày đến hạn</span><strong>${formatDate(payment.dueDate)}</strong></div>`
 
   openModal(`
     <h2>${escapeHtml(payment.name)}</h2>
     <div class="form">
       <div class="detail-grid">
         <div class="detail-box"><span>Số tiền</span><strong>${money(payment.amount)}</strong></div>
-        <div class="detail-box"><span>Ngày đến hạn</span><strong>${formatDate(payment.dueDate)}</strong></div>
+        ${dateDetail}
         <div class="detail-box"><span>Loại</span><strong>${paymentTypeLabel(payment)}</strong></div>
         <div class="detail-box"><span>Trạng thái</span><strong>${payment.paid ? "Đã trả" : "Chưa trả"}</strong></div>
       </div>
@@ -2531,7 +2567,7 @@ function openEditPaymentModal(id) {
         <label>Số tiền</label>
         <input name="amount" inputmode="numeric" value="${formatNumberInput(payment.amount)}" required />
       </div>
-      <div class="field">
+      <div class="field" id="editPaymentDueDateField">
         <label>Ngày đến hạn</label>
         <div class="time-field">
           <span class="time-field-icon">${iconSvg("calendar")}</span>
@@ -2605,7 +2641,9 @@ function openEditPaymentModal(id) {
     event.preventDefault()
     const form = new FormData(event.target)
     const recurrence = form.get("recurrence")
+    const priority = form.get("priority")
     const debtLike = recurrence === "MONTHLY_DEBT" || recurrence === "INSTALLMENT"
+    const skippable = priority === "SKIPPABLE" && !debtLike
     const name = String(form.get("name") || "").trim()
     const normalAmount = parseMoney(form.get("amount"))
     const originalPrincipal = parseMoney(form.get("originalPrincipal"))
@@ -2645,10 +2683,12 @@ function openEditPaymentModal(id) {
     }
     payment.monthlyStartMonth = recurrence === "MONTHLY" ? monthlyStartMonth : ""
     payment.monthlyEndMonth = recurrence === "MONTHLY" ? monthlyEndMonth : ""
-    payment.dueDate = recurrence === "MONTHLY"
+    payment.dueDate = skippable
+      ? (form.get("dueDate") || dateForViewingMonth())
+      : recurrence === "MONTHLY"
       ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
       : (form.get("dueDate") || dateForViewingMonth())
-    payment.priority = form.get("priority")
+    payment.priority = priority
     payment.category = legacyCategoryFor(form.get("categoryId"))
     payment.categoryId = form.get("categoryId")
     payment.subcategory = form.get("subcategory")
@@ -2682,16 +2722,20 @@ function openEditPaymentModal(id) {
   const monthlyRange = document.getElementById("editPaymentMonthlyRange")
   const debtSection = document.getElementById("editPaymentDebtSection")
   const normalAmountField = editForm.querySelector(".normal-amount-field")
+  const dueDateField = document.getElementById("editPaymentDueDateField")
+  const priorityInput = document.getElementById("editPaymentPriority")
   const estimate = document.getElementById("editPaymentDebtEstimate")
   const updateEditMode = () => {
     const debtLike = recurrenceInput.value === "MONTHLY_DEBT" || recurrenceInput.value === "INSTALLMENT"
+    const skippable = priorityInput.value === "SKIPPABLE" && !debtLike
     installmentField.classList.toggle("hidden", !debtLike)
     debtSection.classList.toggle("hidden", !debtLike)
     normalAmountField.classList.toggle("hidden", debtLike)
+    dueDateField.classList.toggle("hidden", skippable)
     editForm.elements.amount.required = !debtLike
     editForm.elements.originalPrincipal.required = debtLike
     editForm.elements.monthlyPayment.required = debtLike
-    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY" || skippable)
     const original = parseMoney(editForm.elements.originalPrincipal.value)
     const monthly = parseMoney(editForm.elements.monthlyPayment.value)
     const paid = parseMoney(editForm.elements.initialPaidAmount.value) + (payment.debtPayments || []).reduce((sum, record) => sum + moneyInt(record.principalPaid || record.actualPaidAmount), 0)
@@ -2702,6 +2746,7 @@ function openEditPaymentModal(id) {
     }
   }
   recurrenceInput.onchange = updateEditMode
+  priorityInput.onchange = updateEditMode
   ;["originalPrincipal", "initialPaidAmount", "monthlyPayment"].forEach(name => editForm.elements[name].addEventListener("input", updateEditMode))
   updateEditMode()
 }
@@ -2876,8 +2921,16 @@ function togglePaid(id) {
     return
   }
 
-  if (recurrence === "ONCE") {
+  if (isFlexibleSkippable(payment)) {
+    payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
+    const nextPaid = !payment.paidMonths[key]
+    payment.paidMonths = nextPaid ? { [key]: true } : {}
+    payment.paid = nextPaid
+    payment.paidAt = nextPaid ? new Date().toISOString() : ""
+    payment.status = nextPaid ? "PAID" : "DEFERABLE"
+  } else if (recurrence === "ONCE") {
     payment.paid = !payment.paid
+    payment.paidAt = payment.paid ? new Date().toISOString() : ""
     payment.status = payment.paid ? "PAID" : (payment.priority === "SKIPPABLE" ? "DEFERABLE" : "DUE")
   } else {
     payment.paidMonths = payment.paidMonths && typeof payment.paidMonths === "object" ? payment.paidMonths : {}
@@ -3015,7 +3068,7 @@ function openPaymentModal() {
         <label>Số tiền</label>
         <input name="amount" inputmode="numeric" placeholder="4,000,000" required />
       </div>
-      <div class="field">
+      <div class="field" id="paymentDueDateField">
         <label>Ngày đến hạn</label>
         <div class="time-field">
           <span class="time-field-icon">${iconSvg("calendar")}</span>
@@ -3084,7 +3137,9 @@ function openPaymentModal() {
     event.preventDefault()
     const form = new FormData(event.target)
     const recurrence = form.get("recurrence")
+    const priority = form.get("priority")
     const debtLike = recurrence === "MONTHLY_DEBT" || recurrence === "INSTALLMENT"
+    const skippable = priority === "SKIPPABLE" && !debtLike
     const name = String(form.get("name") || "").trim()
     const normalAmount = parseMoney(form.get("amount"))
     const originalPrincipal = parseMoney(form.get("originalPrincipal"))
@@ -3121,7 +3176,9 @@ function openPaymentModal() {
       amount,
       monthlyPayment: debtLike ? monthlyPayment : 0,
       initialPaidAmount: debtLike ? initialPaidAmount : 0,
-      dueDate: recurrence === "MONTHLY"
+      dueDate: skippable
+        ? (form.get("dueDate") || dateForViewingMonth())
+        : recurrence === "MONTHLY"
         ? dueDateInMonth(form.get("dueDate") || `${monthlyStartMonth}-01`, monthlyStartMonth)
         : (form.get("dueDate") || dateForViewingMonth()),
       createdAt: new Date().toISOString(),
@@ -3129,13 +3186,13 @@ function openPaymentModal() {
       paymentType: debtLike ? recurrence : (recurrence === "MONTHLY" ? "RECURRING" : "ONCE"),
       monthlyStartMonth: recurrence === "MONTHLY" ? monthlyStartMonth : "",
       monthlyEndMonth: recurrence === "MONTHLY" ? monthlyEndMonth : "",
-      priority: form.get("priority"),
+      priority,
       category: legacyCategoryFor(form.get("categoryId")),
       categoryId: form.get("categoryId"),
       subcategory: form.get("subcategory"),
       customCategory: form.get("customCategory"),
       notes: String(form.get("notes") || "").trim(),
-      status: form.get("priority") === "SKIPPABLE" ? "DEFERABLE" : "DUE",
+      status: priority === "SKIPPABLE" ? "DEFERABLE" : "DUE",
       paid: false,
       paidMonths: {},
       debtPayments: [],
@@ -3156,16 +3213,20 @@ function openPaymentModal() {
   const monthlyRange = document.getElementById("paymentMonthlyRange")
   const debtSection = document.getElementById("paymentDebtSection")
   const normalAmountField = paymentForm.querySelector(".normal-amount-field")
+  const dueDateField = document.getElementById("paymentDueDateField")
+  const priorityInput = document.getElementById("paymentPriority")
   const estimate = document.getElementById("paymentDebtEstimate")
   const updatePaymentMode = () => {
     const debtLike = recurrenceInput.value === "MONTHLY_DEBT" || recurrenceInput.value === "INSTALLMENT"
+    const skippable = priorityInput.value === "SKIPPABLE" && !debtLike
     installmentField.classList.toggle("hidden", !debtLike)
     debtSection.classList.toggle("hidden", !debtLike)
     normalAmountField.classList.toggle("hidden", debtLike)
+    dueDateField.classList.toggle("hidden", skippable)
     paymentForm.elements.amount.required = !debtLike
     paymentForm.elements.originalPrincipal.required = debtLike
     paymentForm.elements.monthlyPayment.required = debtLike
-    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY")
+    monthlyRange.classList.toggle("hidden", recurrenceInput.value !== "MONTHLY" || skippable)
     const original = parseMoney(paymentForm.elements.originalPrincipal.value)
     const monthly = parseMoney(paymentForm.elements.monthlyPayment.value)
     const count = original && monthly ? Math.ceil(original / monthly) : 0
@@ -3177,6 +3238,7 @@ function openPaymentModal() {
     }
   }
   recurrenceInput.onchange = updatePaymentMode
+  priorityInput.onchange = updatePaymentMode
   ;["originalPrincipal", "monthlyPayment"].forEach(name => paymentForm.elements[name].addEventListener("input", updatePaymentMode))
   updatePaymentMode()
 }
@@ -3740,7 +3802,7 @@ if ("serviceWorker" in navigator) {
     window.location.reload()
   })
 
-  navigator.serviceWorker.register("sw.js?v=44").then(registration => {
+  navigator.serviceWorker.register("sw.js?v=45").then(registration => {
     registration.update?.()
   }).catch(() => {})
 }
